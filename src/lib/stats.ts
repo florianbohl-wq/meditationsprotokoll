@@ -133,10 +133,11 @@ export function byTimeOfDay(sessions: Session[]): Bucket[] {
   return none.count ? [...out, none] : out;
 }
 
-export function byPosture(sessions: Session[], order: string[] = []): Bucket[] {
+/** Verteilung nach einer Auswahlliste (Haltung, Anker, Ort) in der Reihenfolge der Liste. */
+export function byField(sessions: Session[], field: 'posture' | 'anchor' | 'location', order: string[] = []): Bucket[] {
   const map = new Map<string, Bucket>();
   for (const s of sessions) {
-    const name = s.posture || 'ohne Angabe';
+    const name = s[field] || 'ohne Angabe';
     const b = map.get(name) ?? { name, count: 0, minutes: 0 };
     b.count += 1;
     b.minutes += s.durationMinutes;
@@ -148,32 +149,6 @@ export function byPosture(sessions: Session[], order: string[] = []): Bucket[] {
     return i < 0 ? order.length : i;
   };
   return [...map.values()].sort((a, b) => rank(a.name) - rank(b.name) || b.count - a.count);
-}
-
-export interface TopItem {
-  label: string;
-  count: number;
-}
-
-/** Häufigste Werte, case-insensitiv gruppiert; angezeigt wird die häufigste Schreibweise. */
-export function topValues(values: (string | undefined)[], limit = 5): TopItem[] {
-  const groups = new Map<string, { count: number; spellings: Map<string, number> }>();
-  for (const raw of values) {
-    const v = raw?.trim();
-    if (!v) continue;
-    const k = v.toLocaleLowerCase('de');
-    const g = groups.get(k) ?? { count: 0, spellings: new Map() };
-    g.count += 1;
-    g.spellings.set(v, (g.spellings.get(v) ?? 0) + 1);
-    groups.set(k, g);
-  }
-  return [...groups.values()]
-    .map((g) => ({
-      label: [...g.spellings.entries()].sort((a, b) => b[1] - a[1])[0][0],
-      count: g.count,
-    }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'de'))
-    .slice(0, limit);
 }
 
 /** Heute / diese Woche (Mo–So) für den Startbildschirm. */

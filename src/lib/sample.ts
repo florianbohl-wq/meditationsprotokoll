@@ -1,17 +1,9 @@
-import { db } from '../db';
+import { db, DEFAULT_OPTIONS } from '../db';
 import type { Session } from '../types';
 import { uuid } from './id';
-import { addPosture } from './postures';
+import { addOption } from './options';
 import { addDays, deriveTimeOfDay, todayISO } from './time';
 
-const ANCHORS = [
-  'Atem an den Nasenlöchern',
-  'Atem im Bauch',
-  'Körperempfindungen in den Händen',
-  'Geräusche',
-  'Atem an den Nasenlöchern, später Bauch',
-  'Füße am Boden',
-];
 const OBSERVATIONS = [
   'Anfangs viel Planen, nach etwa zehn Minuten ruhiger. Der Atem wurde feiner.',
   'Müdigkeit, mehrmals kurz weggedämmert. Rücken leicht verspannt.',
@@ -22,10 +14,11 @@ const OBSERVATIONS = [
   'Wechsel zwischen Konzentration und Abschweifen, etwa alle paar Atemzüge.',
   'Kribbeln in den Händen, Wärme im Gesicht. Freundliche Grundstimmung.',
 ];
-const LOCATIONS = ['Wohnzimmer', 'Schlafzimmer', 'Balkon', 'Büro', 'Park'];
-const BACKGROUNDS = ['ohne', 'Regengeräusche', 'Straßenlärm', 'Vogelgesang', 'ohne'];
+/** Freitexte wie in der alten Version – zum Testen des Zuordnungs-Assistenten */
+const LEGACY_ANCHORS = ['Atem an den Nasenlöchern', 'Youtube-Meditation', 'Geführt von Anna', 'Spirio Bodyscan'];
+const LEGACY_LOCATIONS = ['Wohnzimmer', 'Schlafzimmer oben', 'Hotel Lissabon', 'Bei den Eltern'];
 const TIMES = ['06:15', '07:00', '07:30', '12:10', '12:45', '15:20', '17:00', '19:30', '21:00', '22:40'];
-const SAMPLE_POSTURES = ['Schneidersitz', 'Fersensitz', 'Liegen', 'Kniebank'];
+const SAMPLE_POSTURES = [...DEFAULT_OPTIONS.posture, 'Kniebank'];
 
 /** Einfacher deterministischer Zufallsgenerator, damit Beispieldaten reproduzierbar sind. */
 function rng(seed: number) {
@@ -45,6 +38,8 @@ export function generateSampleSessions(n = 30, today: string = todayISO(), seed 
     const date = addDays(today, -Math.floor(r() * 75));
     const startTime = r() < 0.9 ? pick(TIMES) : undefined;
     const durationSeconds = Math.floor((5 + r() * 40) * 60 + r() * 59);
+    // etwa jeder fünfte Eintrag hat noch alte Freitexte
+    const legacy = r() < 0.2;
     out.push({
       id: uuid(),
       date,
@@ -52,11 +47,10 @@ export function generateSampleSessions(n = 30, today: string = todayISO(), seed 
       timeOfDay: deriveTimeOfDay(startTime),
       durationSeconds,
       durationMinutes: Math.floor(durationSeconds / 60),
-      anchor: pick(ANCHORS),
+      anchor: legacy ? pick(LEGACY_ANCHORS) : pick(DEFAULT_OPTIONS.anchor),
       observation: pick(OBSERVATIONS),
       posture: r() < 0.9 ? pick(SAMPLE_POSTURES) : undefined,
-      location: r() < 0.8 ? pick(LOCATIONS) : undefined,
-      background: r() < 0.7 ? pick(BACKGROUNDS) : undefined,
+      location: r() < 0.8 ? (legacy ? pick(LEGACY_LOCATIONS) : pick(DEFAULT_OPTIONS.location)) : undefined,
       createdAt: nowIso,
       updatedAt: nowIso,
       sample: true,
@@ -66,7 +60,7 @@ export function generateSampleSessions(n = 30, today: string = todayISO(), seed 
 }
 
 export async function addSampleSessions(n = 30): Promise<number> {
-  for (const p of SAMPLE_POSTURES) await addPosture(p);
+  for (const p of SAMPLE_POSTURES) await addOption('posture', p);
   const list = generateSampleSessions(n);
   await db.sessions.bulkAdd(list);
   return list.length;

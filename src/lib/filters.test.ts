@@ -6,7 +6,7 @@ const TODAY = '2026-11-09';
 const list = [
   makeSession({ id: '1', date: '2026-11-09', durationMinutes: 10, posture: 'Sitzen', startTime: '07:00', anchor: 'Atem an den Nasenlöchern' }),
   makeSession({ id: '2', date: '2026-11-03', durationMinutes: 25, posture: 'Liegen', startTime: '20:00', location: 'Balkon' }),
-  makeSession({ id: '3', date: '2026-10-15', durationMinutes: 40, posture: 'Sitzen', startTime: '12:30', background: 'Regengeräusche' }),
+  makeSession({ id: '3', date: '2026-10-15', durationMinutes: 40, posture: 'Sitzen', startTime: '12:30', locationOriginal: 'Regengarten' }),
   makeSession({ id: '4', date: '2026-02-01', durationMinutes: 5, startTime: undefined, observation: 'Unruhe im Körper' }),
   makeSession({ id: '5', date: '2025-12-31', durationMinutes: 30, posture: 'Sitzen', startTime: '23:00' }),
 ];
@@ -33,16 +33,22 @@ describe('Filterlogik', () => {
     expect(ids({ timeOfDay: NO_VALUE })).toEqual(['4']);
   });
 
+  it('Anker und Ort', () => {
+    expect(ids({ anchor: 'Atem an den Nasenlöchern' })).toEqual(['1']);
+    expect(ids({ location: 'Balkon' })).toEqual(['2']);
+    expect(ids({ location: NO_VALUE })).toEqual(['1', '3', '4', '5']);
+  });
+
   it('Dauer von–bis (inklusive)', () => {
     expect(ids({ minDuration: '25' })).toEqual(['2', '3', '5']);
     expect(ids({ maxDuration: '10' })).toEqual(['1', '4']);
     expect(ids({ minDuration: '10', maxDuration: '30' })).toEqual(['1', '2', '5']);
   });
 
-  it('Freitextsuche über Anker, Beobachtung, Ort, Hintergrund (case-insensitiv)', () => {
+  it('Freitextsuche über Anker, Beobachtung, Ort und ursprüngliche Texte (case-insensitiv)', () => {
     expect(ids({ text: 'nasen' })).toEqual(['1']);
     expect(ids({ text: 'BALKON' })).toEqual(['2']);
-    expect(ids({ text: 'regen' })).toEqual(['3']);
+    expect(ids({ text: 'regen' })).toEqual(['3']); // ursprünglicher Ortstext ist durchsuchbar
     expect(ids({ text: 'unruhe körper' })).toEqual(['4']);
     expect(ids({ text: 'unruhe balkon' })).toEqual([]);
   });

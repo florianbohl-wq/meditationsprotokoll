@@ -34,7 +34,7 @@ export function EntryDetail({
     ['Dauer', `${formatMinutes(s.durationMinutes)}${s.durationSeconds % 60 ? ` (gemessen ${formatClock(s.durationSeconds)})` : ''}`],
     ['Haltung', s.posture],
     ['Ort', s.location],
-    ['Hintergrund', s.background],
+    ['Ort (ursprünglich)', s.locationOriginal ? `„${s.locationOriginal}“` : undefined],
   ];
 
   return (
@@ -57,6 +57,7 @@ export function EntryDetail({
         <section>
           <h3 className="text-sm font-medium text-stone-500 dark:text-stone-400">Anker</h3>
           <p className="mt-1 text-base">{s.anchor}</p>
+          {s.anchorOriginal && <p className="text-sm text-stone-500 dark:text-stone-400">ursprünglich: „{s.anchorOriginal}“</p>}
         </section>
         <section>
           <h3 className="text-sm font-medium text-stone-500 dark:text-stone-400">Beobachtung</h3>

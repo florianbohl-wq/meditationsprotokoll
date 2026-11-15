@@ -16,10 +16,11 @@ export interface ExcelRow {
   durationMinutes: number;
   durationSeconds: number;
   anchor: string;
+  anchorOriginal: string;
   observation: string;
   posture: string;
   location: string;
-  background: string;
+  locationOriginal: string;
   createdAt: Date;
   updatedAt: Date;
   id: string;
@@ -31,11 +32,12 @@ export const PROTOCOL_COLUMNS: ExcelColumn[] = [
   { header: 'Tageszeit', key: 'timeOfDay', width: 12 },
   { header: 'Dauer (Min.)', key: 'durationMinutes', width: 12 },
   { header: 'Dauer (Sek.)', key: 'durationSeconds', width: 12 },
-  { header: 'Anker', key: 'anchor', width: 30 },
+  { header: 'Anker', key: 'anchor', width: 18 },
+  { header: 'Anker (ursprünglich)', key: 'anchorOriginal', width: 26 },
   { header: 'Beobachtung', key: 'observation', width: 60 },
   { header: 'Haltung', key: 'posture', width: 14 },
   { header: 'Ort', key: 'location', width: 18 },
-  { header: 'Hintergrund', key: 'background', width: 20 },
+  { header: 'Ort (ursprünglich)', key: 'locationOriginal', width: 22 },
   { header: 'Erstellt', key: 'createdAt', width: 17 },
   { header: 'Geändert', key: 'updatedAt', width: 17 },
   { header: 'ID', key: 'id', width: 38 },
@@ -61,10 +63,11 @@ export function toExcelRow(s: Session): ExcelRow {
     durationMinutes: s.durationMinutes,
     durationSeconds: s.durationSeconds,
     anchor: s.anchor,
+    anchorOriginal: s.anchorOriginal ?? '',
     observation: s.observation,
     posture: s.posture ?? '',
     location: s.location ?? '',
-    background: s.background ?? '',
+    locationOriginal: s.locationOriginal ?? '',
     createdAt: excelDateTime(s.createdAt),
     updatedAt: excelDateTime(s.updatedAt),
     id: s.id,
@@ -105,7 +108,7 @@ export async function buildWorkbook(sessions: Session[], k: KeyFigures, scopeLab
   ws.getColumn('date').numFmt = 'dd.mm.yyyy';
   ws.getColumn('createdAt').numFmt = 'dd.mm.yyyy hh:mm';
   ws.getColumn('updatedAt').numFmt = 'dd.mm.yyyy hh:mm';
-  for (const key of ['anchor', 'observation', 'location', 'background'] as const) {
+  for (const key of ['anchorOriginal', 'observation', 'locationOriginal'] as const) {
     ws.getColumn(key).alignment = { wrapText: true, vertical: 'top' };
   }
   const header = ws.getRow(1);

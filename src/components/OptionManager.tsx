@@ -1,23 +1,27 @@
 import { useState } from 'react';
-import type { Posture, Session } from '../types';
+import { OPTION_LABELS, type Option, type OptionKind, type Session } from '../types';
 import {
-  addPosture,
-  deletePosture,
-  movePosture,
-  PostureError,
-  renamePosture,
-  setPostureArchived,
-} from '../lib/postures';
+  addOption,
+  deleteOption,
+  FIELD,
+  moveOption,
+  OptionError,
+  renameOption,
+  setOptionArchived,
+} from '../lib/options';
 import { Button, cx, inputClass, useConfirm } from './ui';
 
-export function PostureManager({ postures, sessions }: { postures: Posture[]; sessions: Session[] }) {
+/** Verwaltung einer Auswahlliste (Haltungen, Anker oder Orte). */
+export function OptionManager({ kind, options, sessions }: { kind: OptionKind; options: Option[]; sessions: Session[] }) {
   const [newName, setNewName] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [error, setError] = useState('');
   const [confirmEl, confirm] = useConfirm();
+  const L = OPTION_LABELS[kind];
+  const list = options.filter((o) => o.kind === kind).sort((a, b) => a.order - b.order);
 
-  const usage = (name: string) => sessions.filter((s) => s.posture === name).length;
+  const usage = (name: string) => sessions.filter((s) => s[FIELD[kind]] === name).length;
 
   const run = async (fn: () => Promise<unknown>) => {
     try {
@@ -25,42 +29,42 @@ export function PostureManager({ postures, sessions }: { postures: Posture[]; se
       await fn();
       return true;
     } catch (e) {
-      setError(e instanceof PostureError ? e.message : 'Aktion fehlgeschlagen.');
+      setError(e instanceof OptionError ? e.message : 'Aktion fehlgeschlagen.');
       return false;
     }
   };
 
   const add = async () => {
-    if (await run(() => addPosture(newName))) setNewName('');
+    if (await run(() => addOption(kind, newName))) setNewName('');
   };
 
-  const saveRename = async (p: Posture) => {
+  const saveRename = async (p: Option) => {
     const n = usage(p.name);
     if (editName.trim() && editName.trim() !== p.name && n > 0) {
       const ok = await confirm({
-        title: 'Haltung umbenennen?',
+        title: `${L.singular} umbenennen?`,
         message: `„${p.name}“ wird in ${n} ${n === 1 ? 'Eintrag' : 'Einträgen'} zu „${editName.trim()}“ geändert.`,
         confirmLabel: 'Umbenennen',
       });
       if (!ok) return;
     }
-    if (await run(() => renamePosture(p.id, editName))) setEditing(null);
+    if (await run(() => renameOption(p.id, editName))) setEditing(null);
   };
 
-  const remove = async (p: Posture) => {
+  const remove = async (p: Option) => {
     const ok = await confirm({
-      title: 'Haltung löschen?',
-      message: `„${p.name}“ wird endgültig entfernt.`,
+      title: `${L.singular} löschen?`,
+      message: `„${p.name}“ wird endgültig aus der Liste entfernt.`,
       confirmLabel: 'Löschen',
       danger: true,
     });
-    if (ok) await run(() => deletePosture(p.id));
+    if (ok) await run(() => deleteOption(p.id));
   };
 
   return (
     <div className="flex flex-col gap-3">
       <ul className="divide-y divide-stone-200 rounded-2xl bg-white ring-1 ring-stone-200 dark:divide-stone-800 dark:bg-stone-900 dark:ring-stone-800">
-        {postures.map((p, i) => {
+        {list.map((p, i) => {
           const n = usage(p.name);
           return (
             <li key={p.id} className={cx('flex flex-wrap items-center gap-2 px-3 py-2', p.archived && 'opacity-60')}>
@@ -100,13 +104,13 @@ export function PostureManager({ postures, sessions }: { postures: Posture[]; se
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    <IconBtn label={`${p.name} nach oben`} disabled={i === 0} onClick={() => void run(() => movePosture(p.id, -1))}>
+                    <IconBtn label={`${p.name} nach oben`} disabled={i === 0} onClick={() => void run(() => moveOption(p.id, -1))}>
                       ↑
                     </IconBtn>
                     <IconBtn
                       label={`${p.name} nach unten`}
-                      disabled={i === postures.length - 1}
-                      onClick={() => void run(() => movePosture(p.id, 1))}
+                      disabled={i === list.length - 1}
+                      onClick={() => void run(() => moveOption(p.id, 1))}
                     >
                       ↓
                     </IconBtn>
@@ -118,7 +122,7 @@ export function PostureManager({ postures, sessions }: { postures: Posture[]; se
                     >
                       Umbenennen
                     </SmallBtn>
-                    <SmallBtn onClick={() => void run(() => setPostureArchived(p.id, !p.archived))}>
+                    <SmallBtn onClick={() => void run(() => setOptionArchived(p.id, !p.archived))}>
                       {p.archived ? 'Wiederherstellen' : 'Archivieren'}
                     </SmallBtn>
                     {n === 0 && (
@@ -142,8 +146,8 @@ export function PostureManager({ postures, sessions }: { postures: Posture[]; se
         }}
       >
         <input
-          aria-label="Neue Haltung"
-          placeholder="Neue Haltung, z. B. Kniebank"
+          aria-label={`Neue Option für ${L.singular}`}
+          placeholder={`Neu, ${L.example}`}
           className={inputClass()}
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
@@ -157,10 +161,6 @@ export function PostureManager({ postures, sessions }: { postures: Posture[]; se
           {error}
         </p>
       )}
-      <p className="text-sm text-stone-500 dark:text-stone-400">
-        Archivierte Haltungen erscheinen nicht mehr im Formular, bleiben aber in alten Einträgen, Filtern und Statistiken
-        erhalten. Löschen ist nur möglich, wenn kein Eintrag die Haltung verwendet.
-      </p>
       {confirmEl}
     </div>
   );

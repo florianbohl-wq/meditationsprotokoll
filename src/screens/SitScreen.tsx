@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { Session, TimerState } from '../types';
+import type { Option, Session, TimerState } from '../types';
+import { findUnmapped } from '../lib/options';
 import { elapsedMs } from '../lib/timer';
 import { useLocalState, useNow } from '../lib/hooks';
 import { todayAndWeek } from '../lib/stats';
@@ -8,6 +9,7 @@ import { Card } from '../components/ui';
 
 interface Props {
   sessions: Session[];
+  options: Option[];
   timer?: TimerState;
   lastBackup?: string;
   onStart: () => void;
@@ -34,11 +36,25 @@ export function SitScreen(p: Props) {
   const reference = p.lastBackup ?? firstCreated;
   const remindBackup = p.sessions.length > 0 && !!reference && Date.now() - new Date(reference).getTime() > 30 * DAY;
 
+  // Alte Freitexte bei Anker/Ort, die noch zugeordnet werden sollten
+  const unmapped = [...findUnmapped('anchor', p.sessions, p.options), ...findUnmapped('location', p.sessions, p.options)].length;
+
   return (
     <div className="flex flex-col gap-6">
       <header>
         <h1 className="text-2xl font-semibold">Sitzen</h1>
       </header>
+
+      {unmapped > 0 && (
+        <button
+          type="button"
+          onClick={p.onGoToSettings}
+          className="rounded-xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900"
+        >
+          {unmapped} {unmapped === 1 ? 'alter Anker- oder Orts-Text wartet' : 'alte Anker- und Orts-Texte warten'} auf die
+          Zuordnung zur neuen Auswahl – <span className="underline">jetzt zuordnen</span>.
+        </button>
+      )}
 
       {remindBackup && (
         <button

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeSession } from '../test/factory';
 import { DEFAULT_FILTERS } from './filters';
-import { byPosture, byTimeOfDay, computeKeyFigures, minutesSeries, todayAndWeek, topValues, weeklyAverage } from './stats';
+import { byField, byTimeOfDay, computeKeyFigures, minutesSeries, todayAndWeek, weeklyAverage } from './stats';
 
 const TODAY = '2026-11-09'; // Montag
 
@@ -69,7 +69,7 @@ describe('Statistik', () => {
     const t = byTimeOfDay(list);
     expect(t.find((b) => b.name === 'Morgen')).toMatchObject({ count: 2, minutes: 40 });
     expect(t.find((b) => b.name === 'ohne Angabe')).toMatchObject({ count: 1 });
-    const p = byPosture(list, ['Sitzen', 'Liegen']);
+    const p = byField(list, 'posture', ['Sitzen', 'Liegen']);
     expect(p.map((b) => [b.name, b.count])).toEqual([
       ['Sitzen', 2],
       ['Liegen', 1],
@@ -77,12 +77,15 @@ describe('Statistik', () => {
     ]);
   });
 
-  it('Top-Listen gruppieren case-insensitiv', () => {
-    const top = topValues(['Wohnzimmer', 'wohnzimmer', 'Wohnzimmer ', 'Balkon', undefined, '', 'balkon', 'Park']);
-    expect(top).toEqual([
-      { label: 'Wohnzimmer', count: 3 },
-      { label: 'Balkon', count: 2 },
-      { label: 'Park', count: 1 },
+  it('Verteilung nach Anker in Listenreihenfolge', () => {
+    const a = byField(
+      [makeSession({ anchor: 'Person' }), makeSession({ anchor: 'Keiner/Atem' }), makeSession({ anchor: 'Person' })],
+      'anchor',
+      ['Podcast/Youtube', 'Spirio/App', 'Keiner/Atem', 'Person'],
+    );
+    expect(a.map((b) => [b.name, b.count])).toEqual([
+      ['Keiner/Atem', 1],
+      ['Person', 2],
     ]);
   });
 

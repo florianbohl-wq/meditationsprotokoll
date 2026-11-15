@@ -14,7 +14,6 @@ export function emptyDraft(now: Date = new Date()): SessionDraft {
     observation: '',
     posture: '',
     location: '',
-    background: '',
   };
 }
 
@@ -29,7 +28,6 @@ export function draftFromSession(s: Session): SessionDraft {
     observation: s.observation,
     posture: s.posture ?? '',
     location: s.location ?? '',
-    background: s.background ?? '',
   };
 }
 
@@ -41,7 +39,7 @@ export function validateDraft(d: SessionDraft): DraftErrors {
   if (!min) e.durationMinutes = 'Bitte die Dauer in Minuten angeben.';
   else if (!/^\d+$/.test(min)) e.durationMinutes = 'Nur ganze Minuten eingeben.';
   else if (Number(min) < 1) e.durationMinutes = 'Die Dauer muss mindestens 1 Minute betragen.';
-  if (!d.anchor.trim()) e.anchor = 'Bitte den verwendeten Anker notieren.';
+  if (!d.anchor.trim()) e.anchor = 'Bitte den verwendeten Anker auswählen.';
   if (!d.observation.trim()) e.observation = 'Bitte mindestens eine Beobachtung notieren.';
   return e;
 }
@@ -76,7 +74,9 @@ export function sessionFromDraft(d: SessionDraft, existing?: Session, now: Date 
     observation: d.observation.trim(),
     posture: opt(d.posture),
     location: opt(d.location),
-    background: opt(d.background),
+    // ursprüngliche Freitexte aus der Zeit vor den Auswahllisten bleiben immer erhalten
+    ...(existing?.anchorOriginal ? { anchorOriginal: existing.anchorOriginal } : {}),
+    ...(existing?.locationOriginal ? { locationOriginal: existing.locationOriginal } : {}),
     createdAt: existing?.createdAt ?? ts,
     updatedAt: ts,
     ...(existing?.sample ? { sample: true } : {}),

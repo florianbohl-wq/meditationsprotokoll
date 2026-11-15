@@ -1,19 +1,20 @@
 import { useState } from 'react';
-import { TIMES_OF_DAY, type Posture, type Session } from '../types';
+import { TIMES_OF_DAY, type Option, type OptionKind, type Session } from '../types';
+import { FIELD } from '../lib/options';
 import { activeFilterChips, DEFAULT_FILTERS, NO_VALUE, RANGE_LABELS, type Filters, type RangeKey } from '../lib/filters';
 import { Button, Chip, cx, Field, inputClass } from './ui';
 
 interface Props {
   filters: Filters;
   setFilters: (f: Filters) => void;
-  postures: Posture[];
+  options: Option[];
   sessions: Session[];
   /** Freitextsuche anzeigen (im Protokoll ja) */
   withSearch?: boolean;
 }
 
 /** Filterleiste: Suchfeld, Button zum Ausklappen, aktive Filter als entfernbare Chips. */
-export function FilterBar({ filters, setFilters, postures, sessions, withSearch = true }: Props) {
+export function FilterBar({ filters, setFilters, options, sessions, withSearch = true }: Props) {
   const [open, setOpen] = useState(false);
   const chips = activeFilterChips(filters);
   const panelChips = chips.filter((c) => c.key !== 'text');
@@ -41,7 +42,7 @@ export function FilterBar({ filters, setFilters, postures, sessions, withSearch 
         </Button>
       </div>
 
-      {open && <FilterPanel filters={filters} setFilters={setFilters} postures={postures} sessions={sessions} />}
+      {open && <FilterPanel filters={filters} setFilters={setFilters} options={options} sessions={sessions} />}
 
       {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
@@ -74,12 +75,25 @@ export function FilterBar({ filters, setFilters, postures, sessions, withSearch 
   );
 }
 
-function FilterPanel({ filters: f, setFilters, postures, sessions }: Omit<Props, 'withSearch'>) {
+/** Alle Werte einer Liste inkl. archivierter und solcher, die nur noch in Einträgen vorkommen. */
+function valuesFor(kind: OptionKind, options: Option[], sessions: Session[]): string[] {
+  const names = options.filter((o) => o.kind === kind).sort((a, b) => a.order - b.order).map((o) => o.name);
+  const extra = new Set<string>();
+  for (const s of sessions) {
+    const v = s[FIELD[kind]];
+    if (v && !names.includes(v)) extra.add(v);
+  }
+  return [...names, ...[...extra].sort((a, b) => a.localeCompare(b, 'de'))];
+}
+
+function FilterPanel({ filters: f, setFilters, options, sessions }: Omit<Props, 'withSearch'>) {
   const set = (patch: Partial<Filters>) => setFilters({ ...f, ...patch });
 
-  // Alle Haltungen inkl. archivierter und solcher, die nur noch in Einträgen vorkommen
-  const postureNames = postures.map((p) => p.name);
-  for (const s of sessions) if (s.posture && !postureNames.includes(s.posture)) postureNames.push(s.posture);
+  const selects: { kind: OptionKind; key: 'posture' | 'anchor' | 'location'; label: string; withEmpty: boolean }[] = [
+    { kind: 'anchor', key: 'anchor', label: 'Anker', withEmpty: false },
+    { kind: 'posture', key: 'posture', label: 'Haltung', withEmpty: true },
+    { kind: 'location', key: 'location', label: 'Ort', withEmpty: true },
+  ];
 
   return (
     <div className="flex flex-col gap-5 rounded-2xl bg-white p-4 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
@@ -100,17 +114,19 @@ function FilterPanel({ filters: f, setFilters, postures, sessions }: Omit<Props,
       </Field>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Field label="Haltung" htmlFor="flt-posture">
-          <select id="flt-posture" className={inputClass()} value={f.posture} onChange={(e) => set({ posture: e.target.value })}>
-            <option value="">Alle</option>
-            {postureNames.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-            <option value={NO_VALUE}>ohne Angabe</option>
-          </select>
-        </Field>
+        {selects.map(({ kind, key, label, withEmpty }) => (
+          <Field key={key} label={label} htmlFor={`flt-${key}`}>
+            <select id={`flt-${key}`} className={inputClass()} value={f[key]} onChange={(e) => set({ [key]: e.target.value })}>
+              <option value="">Alle</option>
+              {valuesFor(kind, options, sessions).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+              {withEmpty && <option value={NO_VALUE}>ohne Angabe</option>}
+            </select>
+          </Field>
+        ))}
 
         <Field label="Tageszeit" htmlFor="flt-tod">
           <select id="flt-tod" className={inputClass()} value={f.timeOfDay} onChange={(e) => set({ timeOfDay: e.target.value })}>

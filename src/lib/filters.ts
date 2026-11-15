@@ -8,6 +8,8 @@ export interface Filters {
   from: string;
   to: string;
   posture: string;
+  anchor: string;
+  location: string;
   timeOfDay: string;
   minDuration: string;
   maxDuration: string;
@@ -19,6 +21,8 @@ export const DEFAULT_FILTERS: Filters = {
   from: '',
   to: '',
   posture: '',
+  anchor: '',
+  location: '',
   timeOfDay: '',
   minDuration: '',
   maxDuration: '',
@@ -62,8 +66,10 @@ export function matchesFilters(s: Session, f: Filters, today: string = todayISO(
   if (from && s.date < from) return false;
   if (to && s.date > to) return false;
 
-  if (f.posture) {
-    if (f.posture === NO_VALUE ? !!s.posture : s.posture !== f.posture) return false;
+  for (const key of ['posture', 'anchor', 'location'] as const) {
+    const want = f[key];
+    if (!want) continue;
+    if (want === NO_VALUE ? !!s[key] : s[key] !== want) return false;
   }
   if (f.timeOfDay) {
     if (f.timeOfDay === NO_VALUE ? !!s.timeOfDay : s.timeOfDay !== f.timeOfDay) return false;
@@ -75,7 +81,7 @@ export function matchesFilters(s: Session, f: Filters, today: string = todayISO(
 
   const q = f.text.trim().toLocaleLowerCase('de');
   if (q) {
-    const hay = [s.anchor, s.observation, s.location ?? '', s.background ?? '']
+    const hay = [s.anchor, s.observation, s.location ?? '', s.anchorOriginal ?? '', s.locationOriginal ?? '']
       .join('\n')
       .toLocaleLowerCase('de');
     // Alle Suchwörter müssen vorkommen
@@ -103,12 +109,18 @@ export function activeFilterChips(f: Filters): FilterChip[] {
     }
     chips.push({ key: 'range', label, clear: (x) => ({ ...x, range: 'all', from: '', to: '' }) });
   }
-  if (f.posture) {
-    chips.push({
-      key: 'posture',
-      label: `Haltung: ${f.posture === NO_VALUE ? 'ohne Angabe' : f.posture}`,
-      clear: (x) => ({ ...x, posture: '' }),
-    });
+  for (const [key, label] of [
+    ['posture', 'Haltung'],
+    ['anchor', 'Anker'],
+    ['location', 'Ort'],
+  ] as const) {
+    if (f[key]) {
+      chips.push({
+        key,
+        label: `${label}: ${f[key] === NO_VALUE ? 'ohne Angabe' : f[key]}`,
+        clear: (x) => ({ ...x, [key]: '' }),
+      });
+    }
   }
   if (f.timeOfDay) {
     chips.push({

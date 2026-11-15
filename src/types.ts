@@ -1,6 +1,16 @@
 export const TIMES_OF_DAY = ['Morgen', 'Mittag', 'Nachmittag', 'Abend', 'Nacht'] as const;
 export type TimeOfDay = (typeof TIMES_OF_DAY)[number];
 
+/** Auswahllisten mit fester, erweiterbarer Liste */
+export const OPTION_KINDS = ['posture', 'anchor', 'location'] as const;
+export type OptionKind = (typeof OPTION_KINDS)[number];
+
+export const OPTION_LABELS: Record<OptionKind, { singular: string; plural: string; example: string }> = {
+  posture: { singular: 'Haltung', plural: 'Haltungen', example: 'z. B. Kniebank' },
+  anchor: { singular: 'Anker', plural: 'Anker', example: 'z. B. Musik' },
+  location: { singular: 'Ort', plural: 'Orte', example: 'z. B. Park' },
+};
+
 export interface Session {
   id: string;
   /** Kalenderdatum YYYY-MM-DD */
@@ -12,19 +22,25 @@ export interface Session {
   durationSeconds: number;
   /** immer abgerundet (floor) */
   durationMinutes: number;
+  /** Name einer Anker-Option (bei alten Einträgen evtl. noch freier Text) */
   anchor: string;
   observation: string;
   posture?: string;
+  /** Name einer Ort-Option (bei alten Einträgen evtl. noch freier Text) */
   location?: string;
-  background?: string;
+  /** ursprünglicher Freitext, falls ein alter Anker einer Option zugeordnet wurde */
+  anchorOriginal?: string;
+  /** ursprünglicher Freitext, falls ein alter Ort einer Option zugeordnet wurde */
+  locationOriginal?: string;
   createdAt: string;
   updatedAt: string;
   /** nur für Beispiel-Einträge aus dem Entwicklungsbereich */
   sample?: boolean;
 }
 
-export interface Posture {
+export interface Option {
   id: string;
+  kind: OptionKind;
   name: string;
   order: number;
   archived: boolean;
@@ -56,6 +72,5 @@ export interface SessionDraft {
   observation: string;
   posture: string;
   location: string;
-  background: string;
   fromTimer?: boolean;
 }

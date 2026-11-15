@@ -1,32 +1,28 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import type { Posture, SessionDraft } from '../types';
+import type { Option, SessionDraft } from '../types';
 import { validateDraft, type DraftErrors } from '../lib/sessions';
-import { addPosture, PostureError } from '../lib/postures';
 import { floorMinutes, formatClock } from '../lib/time';
 import { useLocalState } from '../lib/hooks';
-import { Button, Chip, Field, inputClass, Modal, useConfirm } from './ui';
+import { ChipSelect } from './ChipSelect';
+import { Button, Field, inputClass, Modal, useConfirm } from './ui';
 
 interface Props {
   initial: SessionDraft;
-  postures: Posture[];
+  options: Option[];
   onSave: (d: SessionDraft) => Promise<void>;
   onCancel: (d: SessionDraft) => void;
 }
 
-const ANCHOR_PLACEHOLDER = 'z. B. Atem an den Nasenlöchern. Bei Wechsel beide notieren.';
 const OBSERVATION_HINT =
   'Beschreiben statt bewerten: Was tat der Geist, was fühlte der Körper, was war leicht oder schwierig?';
 
-export function EntryForm({ initial, postures, onSave, onCancel }: Props) {
+export function EntryForm({ initial, options, onSave, onCancel }: Props) {
   const [d, setD] = useState<SessionDraft>(initial);
   const [errors, setErrors] = useState<DraftErrors>({});
   const [saving, setSaving] = useState(false);
   const [detailsPref, setDetailsPref] = useLocalState('formDetailsOpen', false);
-  const hasOptional = !!(initial.posture || initial.location || initial.background);
+  const hasOptional = !!(initial.posture || initial.location);
   const [showDetails, setShowDetails] = useState(detailsPref || hasOptional);
-  const [newPostureOpen, setNewPostureOpen] = useState(false);
-  const [newPosture, setNewPosture] = useState('');
-  const [postureError, setPostureError] = useState('');
   const [confirmEl, confirm] = useConfirm();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -37,18 +33,13 @@ export function EntryForm({ initial, postures, onSave, onCancel }: Props) {
     if (errors[k as keyof DraftErrors]) setErrors((e) => ({ ...e, [k]: undefined }));
   };
 
-  const activePostures = postures.filter((p) => !p.archived);
-  // Archivierte Haltung eines bestehenden Eintrags trotzdem anzeigen
-  const chipNames = activePostures.map((p) => p.name);
-  if (d.posture && !chipNames.includes(d.posture)) chipNames.push(d.posture);
-
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
     const errs = validateDraft(d);
     setErrors(errs);
     const first = (['date', 'startTime', 'durationMinutes', 'anchor', 'observation'] as const).find((k) => errs[k]);
     if (first) {
-      document.getElementById(`f-${first}`)?.focus();
+      document.getElementById(first === 'anchor' ? 'f-anchor-chips' : `f-${first}`)?.focus();
       return;
     }
     setSaving(true);
@@ -80,29 +71,6 @@ export function EntryForm({ initial, postures, onSave, onCancel }: Props) {
       if (!ok) return;
     }
     onCancel(d);
-  };
-
-  const createPosture = async () => {
-    try {
-      const p = await addPosture(newPosture);
-      set('posture', p.name);
-      setNewPosture('');
-      setNewPostureOpen(false);
-      setPostureError('');
-    } catch (e) {
-      setPostureError(e instanceof PostureError ? e.message : 'Konnte Haltung nicht anlegen.');
-    }
-  };
-
-  const onNewPostureKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      void createPosture();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      setNewPostureOpen(false);
-    }
   };
 
   const onTextareaKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -186,16 +154,8 @@ export function EntryForm({ initial, postures, onSave, onCancel }: Props) {
           />
         </Field>
 
-        <Field label="Anker" htmlFor="f-anchor" required error={errors.anchor}>
-          <input
-            id="f-anchor"
-            type="text"
-            className={inputClass(errors.anchor)}
-            placeholder={ANCHOR_PLACEHOLDER}
-            value={d.anchor}
-            onChange={(e) => set('anchor', e.target.value)}
-            autoComplete="off"
-          />
+        <Field label="Anker" required error={errors.anchor} hint="Bei Wechsel den überwiegenden Anker wählen und den Wechsel in der Beobachtung notieren.">
+          <ChipSelect kind="anchor" idPrefix="f-anchor" options={options} value={d.anchor} onChange={(v) => set('anchor', v)} />
         </Field>
 
         <Field label="Beobachtung" htmlFor="f-observation" required error={errors.observation} hint={OBSERVATION_HINT}>
@@ -225,55 +185,10 @@ export function EntryForm({ initial, postures, onSave, onCancel }: Props) {
           {showDetails && (
             <div className="mt-3 flex flex-col gap-5">
               <Field label="Haltung">
-                <div className="flex flex-wrap gap-2">
-                  {chipNames.map((name) => (
-                    <Chip key={name} selected={d.posture === name} onClick={() => set('posture', d.posture === name ? '' : name)}>
-                      {name}
-                    </Chip>
-                  ))}
-                  {!newPostureOpen && <Chip onClick={() => setNewPostureOpen(true)}>+ Neu</Chip>}
-                </div>
-                {newPostureOpen && (
-                  <div className="mt-2 flex gap-2">
-                    <input
-                      autoFocus
-                      type="text"
-                      aria-label="Neue Haltung"
-                      placeholder="z. B. Kniebank"
-                      className={inputClass(postureError)}
-                      value={newPosture}
-                      onChange={(e) => setNewPosture(e.target.value)}
-                      onKeyDown={onNewPostureKey}
-                    />
-                    <Button variant="primary" onClick={() => void createPosture()}>
-                      Hinzufügen
-                    </Button>
-                    <Button variant="ghost" onClick={() => setNewPostureOpen(false)} aria-label="Abbrechen">
-                      ×
-                    </Button>
-                  </div>
-                )}
-                {postureError && <p className="text-sm text-red-700 dark:text-red-400">{postureError}</p>}
+                <ChipSelect kind="posture" idPrefix="f-posture" options={options} value={d.posture} onChange={(v) => set('posture', v)} />
               </Field>
-
-              <Field label="Ort" htmlFor="f-location">
-                <input
-                  id="f-location"
-                  type="text"
-                  className={inputClass()}
-                  value={d.location}
-                  onChange={(e) => set('location', e.target.value)}
-                />
-              </Field>
-
-              <Field label="Hintergrund" htmlFor="f-background" hint="z. B. „ohne“, „Regengeräusche“">
-                <input
-                  id="f-background"
-                  type="text"
-                  className={inputClass()}
-                  value={d.background}
-                  onChange={(e) => set('background', e.target.value)}
-                />
+              <Field label="Ort">
+                <ChipSelect kind="location" idPrefix="f-location" options={options} value={d.location} onChange={(v) => set('location', v)} />
               </Field>
             </div>
           )}

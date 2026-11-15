@@ -1,20 +1,24 @@
 import { db } from '../db';
-import type { Posture, Session } from '../types';
+import { OPTION_KINDS, type Option, type OptionKind, type Session } from '../types';
 import { uuid } from './id';
+import { migrateLegacySession } from './legacy';
+import { FIELD } from './options';
 
 export interface BackupFile {
   app: 'meditationsprotokoll';
-  format: 1;
+  /** 1 = alte Version (Haltungen, Hintergrund), 2 = Auswahllisten für Haltung, Anker, Ort */
+  format: 1 | 2;
   exportedAt: string;
   sessions: Session[];
-  postures: Posture[];
+  options: Option[];
 }
 
 export class BackupError extends Error {}
 
 export async function createBackup(now: Date = new Date()): Promise<BackupFile> {
-  const [sessions, postures] = await Promise.all([db.sessions.toArray(), db.postures.orderBy('order').toArray()]);
-  return { app: 'meditationsprotokoll', format: 1, exportedAt: now.toISOString(), sessions, postures };
+  const [sessions, options] = await Promise.all([db.sessions.toArray(), db.options.toArray()]);
+  options.sort((a, b) => a.kind.localeCompare(b.kind) || a.order - b.order);
+  return { app: 'meditationsprotokoll', format: 2, exportedAt: now.toISOString(), sessions, options };
 }
 
 export function backupFileName(now: Date = new Date()): string {
@@ -24,7 +28,7 @@ export function backupFileName(now: Date = new Date()): string {
 
 const isStr = (v: unknown): v is string => typeof v === 'string';
 
-function validSession(v: unknown): v is Session {
+function validSession(v: unknown): boolean {
   if (!v || typeof v !== 'object') return false;
   const s = v as Record<string, unknown>;
   return (
@@ -38,12 +42,15 @@ function validSession(v: unknown): v is Session {
   );
 }
 
-function validPosture(v: unknown): v is Posture {
-  if (!v || typeof v !== 'object') return false;
+function toOption(v: unknown, fallbackKind?: OptionKind): Option | undefined {
+  if (!v || typeof v !== 'object') return undefined;
   const p = v as Record<string, unknown>;
-  return isStr(p.id) && isStr(p.name) && p.name.trim() !== '';
+  const kind = (OPTION_KINDS as readonly string[]).includes(p.kind as string) ? (p.kind as OptionKind) : fallbackKind;
+  if (!kind || !isStr(p.id) || !isStr(p.name) || !p.name.trim()) return undefined;
+  return { id: p.id, kind, name: p.name, order: typeof p.order === 'number' ? p.order : 0, archived: !!p.archived };
 }
 
+/** Liest neue und alte Backups (format 1 mit „postures“ und „background“). */
 export function parseBackup(text: string): BackupFile {
   let data: unknown;
   try {
@@ -51,19 +58,23 @@ export function parseBackup(text: string): BackupFile {
   } catch {
     throw new BackupError('Die Datei ist kein gültiges JSON.');
   }
-  const d = data as Partial<BackupFile> | null;
+  const d = data as Record<string, unknown> | null;
   if (!d || d.app !== 'meditationsprotokoll' || !Array.isArray(d.sessions)) {
     throw new BackupError('Das ist keine Backup-Datei des Meditationsprotokolls.');
   }
   const invalid = d.sessions.filter((s) => !validSession(s)).length;
   if (invalid) throw new BackupError(`${invalid} Eintrag/Einträge in der Datei sind unvollständig.`);
-  const postures = Array.isArray(d.postures) ? d.postures.filter(validPosture) : [];
+
+  const options: Option[] = [];
+  if (Array.isArray(d.options)) for (const o of d.options) { const x = toOption(o); if (x) options.push(x); }
+  if (Array.isArray(d.postures)) for (const o of d.postures) { const x = toOption(o, 'posture'); if (x) options.push(x); }
+
   return {
     app: 'meditationsprotokoll',
-    format: 1,
+    format: d.format === 2 ? 2 : 1,
     exportedAt: isStr(d.exportedAt) ? d.exportedAt : '',
-    sessions: d.sessions as Session[],
-    postures,
+    sessions: (d.sessions as Record<string, unknown>[]).map(migrateLegacySession),
+    options,
   };
 }
 
@@ -71,24 +82,34 @@ export interface ImportPreview {
   total: number;
   newSessions: Session[];
   duplicates: number;
-  newPostureNames: string[];
+  newOptionNames: string[];
 }
 
 const norm = (s: string) => s.trim().toLocaleLowerCase('de');
 
-/** Postures, die nach dem Import fehlen würden (aus Haltungsliste und aus Einträgen). */
-function missingPostures(backup: BackupFile, existing: Posture[], sessionsToAdd: Session[]): { name: string; src?: Posture }[] {
-  const known = new Set(existing.map((p) => norm(p.name)));
-  const out: { name: string; src?: Posture }[] = [];
-  const push = (name: string, src?: Posture) => {
-    if (!name.trim() || known.has(norm(name))) return;
-    known.add(norm(name));
-    out.push({ name: name.trim(), src });
+/**
+ * Optionen, die nach dem Import fehlen würden. Aus der Optionsliste des Backups werden alle
+ * übernommen; aus den Einträgen selbst nur Haltungen (alte Anker/Orte-Freitexte werden nicht
+ * automatisch zu Optionen, sondern landen im Zuordnungs-Assistenten).
+ */
+function missingOptions(backup: BackupFile, existing: Option[], sessionsToAdd: Session[]): { kind: OptionKind; name: string; src?: Option }[] {
+  const known = new Set(existing.map((p) => `${p.kind}|${norm(p.name)}`));
+  const out: { kind: OptionKind; name: string; src?: Option }[] = [];
+  const push = (kind: OptionKind, name: string, src?: Option) => {
+    const key = `${kind}|${norm(name)}`;
+    if (!name.trim() || known.has(key)) return;
+    known.add(key);
+    out.push({ kind, name: name.trim(), src });
   };
-  for (const p of [...backup.postures].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) push(p.name, p);
-  for (const s of sessionsToAdd) if (s.posture) push(s.posture);
+  for (const kind of OPTION_KINDS) {
+    for (const p of backup.options.filter((o) => o.kind === kind).sort((a, b) => a.order - b.order)) push(kind, p.name, p);
+  }
+  for (const s of sessionsToAdd) if (s[FIELD.posture]) push('posture', s.posture!);
   return out;
 }
+
+const label = (o: { kind: OptionKind; name: string }) =>
+  `${o.name} (${o.kind === 'posture' ? 'Haltung' : o.kind === 'anchor' ? 'Anker' : 'Ort'})`;
 
 export async function previewImport(backup: BackupFile): Promise<ImportPreview> {
   const ids = new Set(await db.sessions.toCollection().primaryKeys());
@@ -102,32 +123,34 @@ export async function previewImport(backup: BackupFile): Promise<ImportPreview> 
       newSessions.push(s);
     }
   }
-  const existing = await db.postures.toArray();
+  const existing = await db.options.toArray();
   return {
     total: backup.sessions.length,
     newSessions,
     duplicates,
-    newPostureNames: missingPostures(backup, existing, newSessions).map((p) => p.name),
+    newOptionNames: missingOptions(backup, existing, newSessions).map(label),
   };
 }
 
-/** Übernimmt neue Einträge (Duplikate nach id werden übersprungen) und fehlende Haltungen. */
-export async function applyImport(backup: BackupFile): Promise<{ added: number; duplicates: number; posturesAdded: number }> {
-  return db.transaction('rw', db.sessions, db.postures, async () => {
+/** Übernimmt neue Einträge (Duplikate nach id werden übersprungen) und fehlende Optionen. */
+export async function applyImport(backup: BackupFile): Promise<{ added: number; duplicates: number; optionsAdded: number }> {
+  return db.transaction('rw', db.sessions, db.options, async () => {
     const preview = await previewImport(backup);
-    const existing = await db.postures.toArray();
-    const missing = missingPostures(backup, existing, preview.newSessions);
+    const existing = await db.options.toArray();
+    const missing = missingOptions(backup, existing, preview.newSessions);
     const existingIds = new Set(existing.map((p) => p.id));
-    let order = existing.reduce((m, p) => Math.max(m, p.order), -1);
-    await db.postures.bulkAdd(
-      missing.map(({ name, src }) => ({
+    const nextOrder: Record<OptionKind, number> = { posture: -1, anchor: -1, location: -1 };
+    for (const o of existing) nextOrder[o.kind] = Math.max(nextOrder[o.kind], o.order);
+    await db.options.bulkAdd(
+      missing.map(({ kind, name, src }) => ({
         id: src && !existingIds.has(src.id) ? src.id : uuid(),
+        kind,
         name,
-        order: ++order,
-        archived: src ? !!src.archived : false,
+        order: ++nextOrder[kind],
+        archived: src ? src.archived : false,
       })),
     );
     await db.sessions.bulkAdd(preview.newSessions);
-    return { added: preview.newSessions.length, duplicates: preview.duplicates, posturesAdded: missing.length };
+    return { added: preview.newSessions.length, duplicates: preview.duplicates, optionsAdded: missing.length };
   });
 }

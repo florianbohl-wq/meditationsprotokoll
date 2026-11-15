@@ -1,8 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { Posture, Session } from '../types';
+import type { Option, OptionKind, Session } from '../types';
 import type { Filters } from '../lib/filters';
-import { byPosture, byTimeOfDay, computeKeyFigures, minutesSeries, topValues, weeklyAverage, type TopItem } from '../lib/stats';
+import { byField, byTimeOfDay, computeKeyFigures, minutesSeries, weeklyAverage } from '../lib/stats';
 import { formatDateDE, formatMinutes } from '../lib/time';
 import { FilterBar } from '../components/FilterPanel';
 import { Card, EmptyState } from '../components/ui';
@@ -13,7 +13,7 @@ interface Props {
   filtered: Session[];
   filters: Filters;
   setFilters: (f: Filters) => void;
-  postures: Posture[];
+  options: Option[];
 }
 
 const axisTick = { fill: 'var(--chart-text)', fontSize: 12 };
@@ -34,15 +34,11 @@ export function StatsScreen(p: Props) {
   const series = useMemo(() => minutesSeries(p.filtered, p.filters), [p.filtered, p.filters]);
   const avg = useMemo(() => weeklyAverage(p.filtered, p.filters), [p.filtered, p.filters]);
   const tod = useMemo(() => byTimeOfDay(p.filtered), [p.filtered]);
-  const pos = useMemo(() => byPosture(p.filtered, p.postures.map((x) => x.name)), [p.filtered, p.postures]);
-  const tops = useMemo(
-    () => ({
-      anchors: topValues(p.filtered.map((s) => s.anchor)),
-      locations: topValues(p.filtered.map((s) => s.location)),
-      backgrounds: topValues(p.filtered.map((s) => s.background)),
-    }),
-    [p.filtered],
-  );
+  const order = (kind: OptionKind) =>
+    p.options.filter((o) => o.kind === kind).sort((a, b) => a.order - b.order).map((o) => o.name);
+  const pos = useMemo(() => byField(p.filtered, 'posture', order('posture')), [p.filtered, p.options]);
+  const anc = useMemo(() => byField(p.filtered, 'anchor', order('anchor')), [p.filtered, p.options]);
+  const loc = useMemo(() => byField(p.filtered, 'location', order('location')), [p.filtered, p.options]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -57,7 +53,7 @@ export function StatsScreen(p: Props) {
         </EmptyState>
       ) : (
         <>
-          <FilterBar filters={p.filters} setFilters={p.setFilters} postures={p.postures} sessions={p.sessions} />
+          <FilterBar filters={p.filters} setFilters={p.setFilters} options={p.options} sessions={p.sessions} />
 
           {k.periodFrom && k.periodTo && (
             <p className="text-sm text-stone-500 dark:text-stone-400">
@@ -120,15 +116,17 @@ export function StatsScreen(p: Props) {
                   <BucketChart data={tod} />
                 </ChartCard>
 
+                <ChartCard title="Nach Anker (Sitzungen)">
+                  <BucketChart data={anc} />
+                </ChartCard>
+
                 <ChartCard title="Nach Haltung (Sitzungen)">
                   <BucketChart data={pos} />
                 </ChartCard>
-              </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
-                <TopList title="Häufigste Anker" items={tops.anchors} />
-                <TopList title="Häufigste Orte" items={tops.locations} />
-                <TopList title="Häufigste Hintergründe" items={tops.backgrounds} />
+                <ChartCard title="Nach Ort (Sitzungen)">
+                  <BucketChart data={loc} />
+                </ChartCard>
               </div>
             </>
           )}
@@ -163,7 +161,7 @@ function BucketChart({ data }: { data: { name: string; count: number; minutes: n
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }} barCategoryGap={6}>
         <CartesianGrid horizontal={false} stroke="var(--chart-grid)" />
         <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
-        <YAxis type="category" dataKey="name" tick={axisTick} tickLine={false} axisLine={false} width={96} />
+        <YAxis type="category" dataKey="name" tick={axisTick} tickLine={false} axisLine={false} width={118} />
         <Tooltip
           {...tooltipStyle}
           formatter={(v: number, _n, item) => [`${v} Sitzungen · ${(item.payload as { minutes: number }).minutes} Min.`, '']}
@@ -172,31 +170,5 @@ function BucketChart({ data }: { data: { name: string; count: number; minutes: n
         <Bar dataKey="count" fill="var(--chart-bar)" radius={[0, 4, 4, 0]} maxBarSize={22} />
       </BarChart>
     </ResponsiveContainer>
-  );
-}
-
-function TopList({ title, items }: { title: string; items: TopItem[] }) {
-  const max = items[0]?.count ?? 1;
-  return (
-    <Card>
-      <h2 className="mb-3 text-base font-semibold">{title}</h2>
-      {items.length === 0 ? (
-        <p className="text-sm text-stone-500 dark:text-stone-400">Keine Angaben</p>
-      ) : (
-        <ol className="flex flex-col gap-2.5">
-          {items.map((it) => (
-            <li key={it.label} className="text-sm">
-              <div className="flex justify-between gap-3">
-                <span className="truncate">{it.label}</span>
-                <span className="shrink-0 tabular text-stone-500 dark:text-stone-400">{it.count}×</span>
-              </div>
-              <div className="mt-1 h-1.5 rounded-full bg-stone-100 dark:bg-stone-800">
-                <div className="h-1.5 rounded-full bg-[var(--chart-bar)]" style={{ width: `${(it.count / max) * 100}%` }} />
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-    </Card>
   );
 }

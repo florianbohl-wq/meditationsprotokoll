@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Posture, Session } from '../types';
+import type { Option, Session } from '../types';
 import { DEFAULT_FILTERS, type Filters } from '../lib/filters';
 import { sortNewestFirst } from '../lib/sessions';
 import { formatDateDE, formatMinutes, weekdayShort } from '../lib/time';
@@ -13,7 +13,7 @@ interface Props {
   filtered: Session[];
   filters: Filters;
   setFilters: (f: Filters) => void;
-  postures: Posture[];
+  options: Option[];
   onOpen: (id: string) => void;
   onNew: () => void;
 }
@@ -63,7 +63,7 @@ export function LogScreen(p: Props) {
         </EmptyState>
       ) : (
         <>
-          <FilterBar filters={p.filters} setFilters={p.setFilters} postures={p.postures} sessions={p.sessions} />
+          <FilterBar filters={p.filters} setFilters={p.setFilters} options={p.options} sessions={p.sessions} />
 
           <p className="text-sm text-stone-600 dark:text-stone-400" aria-live="polite">
             <strong className="text-stone-900 dark:text-stone-100">{list.length}</strong>{' '}
@@ -94,6 +94,7 @@ export function LogScreen(p: Props) {
                     <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
                       {s.anchor}
                       {s.posture && <span className="text-stone-400 dark:text-stone-500"> · {s.posture}</span>}
+                      {s.location && <span className="text-stone-400 dark:text-stone-500"> · {s.location}</span>}
                     </p>
                     <p className="mt-2 line-clamp-2 text-sm text-stone-500 dark:text-stone-400">{s.observation}</p>
                   </button>
@@ -102,10 +103,10 @@ export function LogScreen(p: Props) {
             </ul>
           ) : (
             <div className="overflow-x-auto rounded-2xl bg-white ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
-              <table className="w-full min-w-[56rem] text-left text-sm">
+              <table className="w-full min-w-[50rem] text-left text-sm">
                 <thead className="border-b border-stone-200 text-stone-500 dark:border-stone-800 dark:text-stone-400">
                   <tr>
-                    {['Datum', 'Zeit', 'Tageszeit', 'Dauer', 'Anker', 'Beobachtung', 'Haltung', 'Ort', 'Hintergrund'].map((h) => (
+                    {['Datum', 'Zeit', 'Tageszeit', 'Dauer', 'Anker', 'Beobachtung', 'Haltung', 'Ort'].map((h) => (
                       <th key={h} className="px-3 py-3 font-medium whitespace-nowrap">
                         {h}
                       </th>
@@ -136,7 +137,6 @@ export function LogScreen(p: Props) {
                       </td>
                       <td className="px-3 py-2.5">{s.posture ?? ''}</td>
                       <td className="px-3 py-2.5">{s.location ?? ''}</td>
-                      <td className="px-3 py-2.5">{s.background ?? ''}</td>
                     </tr>
                   ))}
                 </tbody>

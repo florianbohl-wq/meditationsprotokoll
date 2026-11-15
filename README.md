@@ -8,6 +8,21 @@ filtern, Statistiken anzeigen und als Excel exportieren.
 
 Technik: Vite, React, TypeScript, Tailwind CSS, vite-plugin-pwa, Dexie.js, ExcelJS, Recharts.
 
+## Auswahllisten (ab Version 1.1)
+
+Haltung, Anker und Ort werden aus festen, erweiterbaren Listen gewählt (Einstellungen → Auswahllisten verwalten).
+Das frühere Feld „Hintergrund“ gibt es nicht mehr.
+
+Beim ersten Start nach dem Update auf 1.1 stellt die App die Datenbank automatisch um:
+
+- vorhandene Hintergrund-Texte werden als letzte Zeile („Hintergrund: …“) an die Beobachtung angehängt,
+- Anker/Orte, die exakt einer neuen Option entsprechen, werden übernommen,
+- alle anderen alten Anker-/Orts-Texte bleiben unverändert und erscheinen unter
+  **Einstellungen → Alte Anker/Orte zuordnen**. Dort wird jeder Text einmal einer Option zugeordnet;
+  der ursprüngliche Text bleibt im Eintrag als „ursprünglich“ erhalten (auch im Excel-Export).
+
+Auch JSON-Backups der alten Version lassen sich weiterhin importieren.
+
 ## Voraussetzungen
 
 - [Node.js](https://nodejs.org/) ab Version 20 (getestet mit 24)

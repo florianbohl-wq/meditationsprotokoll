@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { db, DEFAULT_POSTURES, META, setMeta } from '../db';
-import type { Posture, Session } from '../types';
+import { db, defaultOptions, META, setMeta } from '../db';
+import { OPTION_LABELS, type Option, type OptionKind, type Session } from '../types';
 import { activeFilterChips, type Filters } from '../lib/filters';
 import { computeKeyFigures } from '../lib/stats';
 import { buildWorkbook, excelFileName, XLSX_MIME } from '../lib/excel';
@@ -8,21 +8,23 @@ import { applyImport, backupFileName, BackupError, createBackup, parseBackup, pr
 import { addSampleSessions, deleteSampleSessions } from '../lib/sample';
 import { shareOrDownload } from '../lib/share';
 import { devToolsEnabled, isAndroid } from '../lib/hooks';
-import { uuid } from '../lib/id';
 import { formatTimestampDE } from '../lib/time';
-import { PostureManager } from '../components/PostureManager';
-import { Button, Card, Modal, SectionTitle, useConfirm } from '../components/ui';
+import { OptionManager } from '../components/OptionManager';
+import { MappingAssistant } from '../components/MappingAssistant';
+import { Button, Card, Chip, Modal, SectionTitle, useConfirm } from '../components/ui';
+import { useLocalState } from '../lib/hooks';
 
 interface Props {
   sessions: Session[];
   filtered: Session[];
   filters: Filters;
-  postures: Posture[];
+  options: Option[];
   lastBackup?: string;
   toast: (msg: string) => void;
 }
 
-export function SettingsScreen({ sessions, filtered, filters, postures, lastBackup, toast }: Props) {
+export function SettingsScreen({ sessions, filtered, filters, options, lastBackup, toast }: Props) {
+  const [listKind, setListKind] = useLocalState<OptionKind>('settingsListKind', 'anchor');
   const [scope, setScope] = useState<'all' | 'filtered'>('all');
   const [busy, setBusy] = useState(false);
   const [importState, setImportState] = useState<{ backup: BackupFile; preview: ImportPreview } | null>(null);
@@ -96,7 +98,7 @@ export function SettingsScreen({ sessions, filtered, filters, postures, lastBack
   const deleteAll = async () => {
     const first = await confirm({
       title: 'Alle Daten löschen?',
-      message: `Alle ${sessions.length} Einträge und die Haltungsliste werden von diesem Gerät gelöscht.`,
+      message: `Alle ${sessions.length} Einträge und die Auswahllisten werden von diesem Gerät gelöscht.`,
       confirmLabel: 'Weiter',
       danger: true,
     });
@@ -108,10 +110,10 @@ export function SettingsScreen({ sessions, filtered, filters, postures, lastBack
       danger: true,
     });
     if (!second) return;
-    await db.transaction('rw', db.sessions, db.postures, db.meta, async () => {
+    await db.transaction('rw', db.sessions, db.options, db.meta, async () => {
       await db.sessions.clear();
-      await db.postures.clear();
-      await db.postures.bulkAdd(DEFAULT_POSTURES.map((name, i) => ({ id: uuid(), name, order: i, archived: false })));
+      await db.options.clear();
+      await db.options.bulkAdd(defaultOptions());
       await db.meta.where('key').anyOf([META.lastBackup, META.timer]).delete();
     });
     toast('Alle Daten gelöscht');
@@ -144,9 +146,23 @@ export function SettingsScreen({ sessions, filtered, filters, postures, lastBack
         </Card>
       </section>
 
+      <MappingAssistant kind="anchor" sessions={sessions} options={options} toast={toast} />
+      <MappingAssistant kind="location" sessions={sessions} options={options} toast={toast} />
+
       <section>
-        <SectionTitle>Haltungen verwalten</SectionTitle>
-        <PostureManager postures={postures} sessions={sessions} />
+        <SectionTitle>Auswahllisten verwalten</SectionTitle>
+        <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Liste">
+          {(['anchor', 'posture', 'location'] as OptionKind[]).map((k) => (
+            <Chip key={k} selected={listKind === k} onClick={() => setListKind(k)}>
+              {OPTION_LABELS[k].plural}
+            </Chip>
+          ))}
+        </div>
+        <OptionManager kind={listKind} options={options} sessions={sessions} />
+        <p className="mt-3 text-sm text-stone-500 dark:text-stone-400">
+          Archivierte Einträge erscheinen nicht mehr im Formular, bleiben aber in alten Einträgen, Filtern und Statistiken
+          erhalten. Löschen ist nur möglich, wenn kein Eintrag sie verwendet. Umbenennen ändert alle betroffenen Einträge mit.
+        </p>
       </section>
 
       <section>
@@ -182,7 +198,7 @@ export function SettingsScreen({ sessions, filtered, filters, postures, lastBack
         <SectionTitle>Backup (JSON)</SectionTitle>
         <Card className="flex flex-col gap-3">
           <p className="text-sm text-stone-600 dark:text-stone-300">
-            Vollständige Sicherung aller Einträge und Haltungen. Beim Import werden bereits vorhandene Einträge übersprungen.
+            Vollständige Sicherung aller Einträge und Auswahllisten. Auch Backups der alten Version lassen sich importieren. Beim Import werden bereits vorhandene Einträge übersprungen.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" onClick={() => void exportJson()} disabled={busy}>
@@ -249,7 +265,7 @@ export function SettingsScreen({ sessions, filtered, filters, postures, lastBack
           footer={
             <>
               <Button onClick={() => setImportState(null)}>Abbrechen</Button>
-              <Button variant="primary" onClick={() => void doImport()} disabled={importState.preview.newSessions.length === 0 && importState.preview.newPostureNames.length === 0}>
+              <Button variant="primary" onClick={() => void doImport()} disabled={importState.preview.newSessions.length === 0 && importState.preview.newOptionNames.length === 0}>
                 Importieren
               </Button>
             </>
@@ -269,9 +285,9 @@ export function SettingsScreen({ sessions, filtered, filters, postures, lastBack
             <dt className="text-stone-500">Schon vorhanden (werden übersprungen)</dt>
             <dd className="text-right tabular">{importState.preview.duplicates}</dd>
           </dl>
-          {importState.preview.newPostureNames.length > 0 && (
+          {importState.preview.newOptionNames.length > 0 && (
             <p className="mt-3 text-sm text-stone-600 dark:text-stone-300">
-              Neue Haltungen: {importState.preview.newPostureNames.join(', ')}
+              Neu in den Auswahllisten: {importState.preview.newOptionNames.join(', ')}
             </p>
           )}
         </Modal>

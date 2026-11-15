@@ -36,7 +36,6 @@ function draftFromTimer(t: TimerState): SessionDraft {
     observation: '',
     posture: '',
     location: '',
-    background: '',
     fromTimer: true,
   };
 }
@@ -49,7 +48,7 @@ export default function App() {
   const [toastEl, toast] = useToast();
 
   const sessions = useLiveQuery(() => db.sessions.toArray(), []);
-  const postures = useLiveQuery(() => db.postures.orderBy('order').toArray(), []) ?? [];
+  const options = useLiveQuery(() => db.options.toArray(), []) ?? [];
   const lastBackup = useLiveQuery(() => getMeta<string>(META.lastBackup), []);
 
   // ---------- Stoppuhr (Zustand in IndexedDB gesichert) ----------
@@ -105,6 +104,7 @@ export default function App() {
             {tab === 'sitzen' && (
               <SitScreen
                 sessions={sessions}
+                options={options}
                 timer={timer}
                 lastBackup={lastBackup}
                 onStart={() => updateTimer(startTimer())}
@@ -121,7 +121,7 @@ export default function App() {
                 filtered={filtered}
                 filters={filters}
                 setFilters={setFilters}
-                postures={postures}
+                options={options}
                 sessions={sessions}
                 onOpen={setDetailId}
                 onNew={() => setForm(emptyDraft())}
@@ -135,7 +135,7 @@ export default function App() {
                   filtered={filtered}
                   filters={filters}
                   setFilters={setFilters}
-                  postures={postures}
+                  options={options}
                 />
               </Suspense>
             )}
@@ -144,7 +144,7 @@ export default function App() {
                 sessions={sessions}
                 filtered={filtered}
                 filters={filters}
-                postures={postures}
+                options={options}
                 lastBackup={lastBackup}
                 toast={toast}
               />
@@ -171,7 +171,7 @@ export default function App() {
         <EntryForm
           key={form.id ?? (form.fromTimer ? 'timer' : 'new')}
           initial={form}
-          postures={postures}
+          options={options}
           onSave={handleSave}
           onCancel={handleCancelForm}
         />
