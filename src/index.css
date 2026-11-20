@@ -19,6 +19,7 @@
   --chart-bar: #3f8a3a;
   --chart-line: #3f8a3a;
   --chart-cursor: rgba(63, 138, 58, 0.08);
+  --chart-focus: #4a64d6;
   --chart-grid: #e7e5e4;
   --chart-text: #78716c;
   --chart-tooltip-bg: #ffffff;
@@ -30,6 +31,7 @@
     --chart-bar: #62a856;
     --chart-line: #62a856;
     --chart-cursor: rgba(98, 168, 86, 0.12);
+    --chart-focus: #6f86e8;
     --chart-grid: #292524;
     --chart-text: #a8a29e;
     --chart-tooltip-bg: #1c1917;

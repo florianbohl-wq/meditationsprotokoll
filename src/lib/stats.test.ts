@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeSession } from '../test/factory';
 import { DEFAULT_FILTERS } from './filters';
-import { byField, byTimeOfDay, computeKeyFigures, minutesSeries, todayAndWeek, weeklyAverage } from './stats';
+import { byField, byTimeOfDay, computeKeyFigures, focusDistribution, minutesSeries, todayAndWeek, weeklyAverage, weeklySeries } from './stats';
 
 const TODAY = '2026-11-09'; // Montag
 
@@ -44,6 +44,33 @@ describe('Statistik', () => {
     expect(k).toMatchObject({ avgFocus: 4.5, focusCount: 2, count: 3 });
     expect(weeklyAverage(l, DEFAULT_FILTERS, TODAY, 'focus').map((p) => p.avg)).toEqual([3, 6]);
     expect(computeKeyFigures([makeSession({ focusSuggestion: 4 })], DEFAULT_FILTERS, TODAY).avgFocus).toBeUndefined();
+  });
+
+  it('Fokus je Tag, je Woche, je Kategorie und Verteilung', () => {
+    const l = [
+      makeSession({ date: '2026-11-09', durationMinutes: 10, focus: 6, posture: 'Liegen', startTime: '07:00' }),
+      makeSession({ date: '2026-11-09', durationMinutes: 20, focus: 4, posture: 'Liegen', startTime: '20:00' }),
+      makeSession({ date: '2026-11-08', durationMinutes: 30, focusSuggestion: 2, posture: 'Liegen', startTime: '07:30' }),
+      makeSession({ date: '2026-11-03', durationMinutes: 40, focus: 9, startTime: '07:15' }),
+    ];
+    const f = { ...DEFAULT_FILTERS, range: '7' as const };
+    const day = minutesSeries(l, f, TODAY).points;
+    expect(day.find((p) => p.key === '2026-11-09')).toMatchObject({ minutes: 30, focus: 5 });
+    expect(day.find((p) => p.key === '2026-11-08')).toMatchObject({ minutes: 30, focus: null }); // nur Vorschlag
+    expect(day.find((p) => p.key === '2026-11-05')).toMatchObject({ minutes: 0, focus: null });
+
+    const weeks = weeklySeries(l, DEFAULT_FILTERS, TODAY);
+    expect(weeks.map((w) => [w.key, w.avgMinutes, w.focus])).toEqual([
+      ['2026-11-02', 35, 9],
+      ['2026-11-09', 15, 5],
+    ]);
+
+    const liegen = byField(l, 'posture', ['Liegen']).find((b) => b.name === 'Liegen');
+    expect(liegen).toMatchObject({ count: 3, avgFocus: 5, focusCount: 2 });
+    expect(byTimeOfDay(l).find((b) => b.name === 'Morgen')).toMatchObject({ count: 3, avgFocus: 7.5, focusCount: 2 });
+    expect(byTimeOfDay(l).find((b) => b.name === 'Mittag')).toMatchObject({ count: 0, avgFocus: null });
+
+    expect(focusDistribution(l).filter((x) => x.count).map((x) => [x.value, x.count])).toEqual([[4, 1], [6, 1], [9, 1]]);
   });
 
   it('leere Liste ergibt Nullen', () => {

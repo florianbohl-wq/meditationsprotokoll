@@ -58,10 +58,31 @@ export function computeKeyFigures(sessions: Session[], f: Filters, today: string
   };
 }
 
+/** Durchschnitt mit einer Nachkommastelle; null, wenn keine Werte */
+const avg1 = (sum: number, n: number): number | null => (n ? Math.round((sum / n) * 10) / 10 : null);
+
+/** Sammelt Minuten und bestätigten Fokus je Schlüssel. */
+class Acc {
+  minutes = 0;
+  count = 0;
+  focusSum = 0;
+  focusN = 0;
+  add(s: Session) {
+    this.minutes += s.durationMinutes;
+    this.count += 1;
+    if (typeof s.focus === 'number') {
+      this.focusSum += s.focus;
+      this.focusN += 1;
+    }
+  }
+}
+
 export interface MinutesPoint {
   key: string;
   label: string;
   minutes: number;
+  /** Ø bestätigter Fokus in diesem Zeitraum, null = keiner */
+  focus: number | null;
 }
 
 export interface MinutesSeries {
@@ -69,33 +90,34 @@ export interface MinutesSeries {
   points: MinutesPoint[];
 }
 
-/** Minuten pro Tag (bis 31 Tage) bzw. pro Woche bei längeren Zeiträumen. Ohne Zeitraum: letzte 30 Tage. */
+/**
+ * Minuten und Ø Fokus pro Tag (bis 31 Tage) bzw. pro Woche bei längeren Zeiträumen.
+ * Ohne Zeitraum: letzte 30 Tage.
+ */
 export function minutesSeries(sessions: Session[], f: Filters, today: string = todayISO()): MinutesSeries {
   const period = effectivePeriod(sessions, f, today) ?? { from: addDays(today, -29), to: today };
   const days = daysBetweenInclusive(period.from, period.to);
-  if (days <= 31) {
-    const byDay = new Map<string, number>();
-    for (const s of sessions) byDay.set(s.date, (byDay.get(s.date) ?? 0) + s.durationMinutes);
-    const points: MinutesPoint[] = [];
-    for (let d = period.from; d <= period.to; d = addDays(d, 1)) {
-      points.push({
-        key: d,
-        label: days <= 7 ? `${weekdayShort(d)} ${formatDayMonth(d)}` : formatDayMonth(d),
-        minutes: byDay.get(d) ?? 0,
-      });
-    }
-    return { unit: 'day', points };
-  }
-  const byWeek = new Map<string, number>();
+  const unit: 'day' | 'week' = days <= 31 ? 'day' : 'week';
+  const keyOf = (date: string) => (unit === 'day' ? date : startOfWeek(date));
+  const acc = new Map<string, Acc>();
   for (const s of sessions) {
-    const w = startOfWeek(s.date);
-    byWeek.set(w, (byWeek.get(w) ?? 0) + s.durationMinutes);
+    const k = keyOf(s.date);
+    const a = acc.get(k) ?? new Acc();
+    a.add(s);
+    acc.set(k, a);
   }
   const points: MinutesPoint[] = [];
-  for (let w = startOfWeek(period.from); w <= period.to; w = addDays(w, 7)) {
-    points.push({ key: w, label: formatDayMonth(w), minutes: byWeek.get(w) ?? 0 });
+  const step = unit === 'day' ? 1 : 7;
+  for (let k = keyOf(period.from); k <= period.to; k = addDays(k, step)) {
+    const a = acc.get(k);
+    points.push({
+      key: k,
+      label: unit === 'day' && days <= 7 ? `${weekdayShort(k)} ${formatDayMonth(k)}` : formatDayMonth(k),
+      minutes: a?.minutes ?? 0,
+      focus: a ? avg1(a.focusSum, a.focusN) : null,
+    });
   }
-  return { unit: 'week', points };
+  return { unit, points };
 }
 
 export interface AvgPoint {
@@ -104,69 +126,101 @@ export interface AvgPoint {
   avg: number | null;
 }
 
-/**
- * Wochendurchschnitt (Wochen ohne Wert = null, damit die Linie Lücken überbrückt).
- * value: 'duration' = Ø Dauer, 'focus' = Ø bestätigter Fokus.
- */
+export interface WeekPoint {
+  key: string;
+  label: string;
+  /** Ø Dauer in Minuten, null = keine Sitzung */
+  avgMinutes: number | null;
+  /** Ø bestätigter Fokus, null = keiner */
+  focus: number | null;
+}
+
+/** Ø Dauer und Ø Fokus je Woche (Wochen ohne Wert = null, damit Linien Lücken überbrücken). */
+export function weeklySeries(sessions: Session[], f: Filters, today: string = todayISO()): WeekPoint[] {
+  const period = effectivePeriod(sessions, f, today);
+  if (!period) return [];
+  const acc = new Map<string, Acc>();
+  for (const s of sessions) {
+    const w = startOfWeek(s.date);
+    const a = acc.get(w) ?? new Acc();
+    a.add(s);
+    acc.set(w, a);
+  }
+  const out: WeekPoint[] = [];
+  for (let w = startOfWeek(period.from); w <= period.to; w = addDays(w, 7)) {
+    const a = acc.get(w);
+    out.push({
+      key: w,
+      label: formatDayMonth(w),
+      avgMinutes: a ? avg1(a.minutes, a.count) : null,
+      focus: a ? avg1(a.focusSum, a.focusN) : null,
+    });
+  }
+  return out;
+}
+
+/** Ein Wert pro Woche (für einfache Verläufe). */
 export function weeklyAverage(
   sessions: Session[],
   f: Filters,
   today: string = todayISO(),
   value: 'duration' | 'focus' = 'duration',
 ): AvgPoint[] {
-  const period = effectivePeriod(sessions, f, today);
-  if (!period) return [];
-  const acc = new Map<string, { sum: number; n: number }>();
-  for (const s of sessions) {
-    const v = value === 'focus' ? s.focus : s.durationMinutes;
-    if (typeof v !== 'number') continue;
-    const w = startOfWeek(s.date);
-    const a = acc.get(w) ?? { sum: 0, n: 0 };
-    a.sum += v;
-    a.n += 1;
-    acc.set(w, a);
-  }
-  const out: AvgPoint[] = [];
-  for (let w = startOfWeek(period.from); w <= period.to; w = addDays(w, 7)) {
-    const a = acc.get(w);
-    out.push({ key: w, label: formatDayMonth(w), avg: a ? Math.round((a.sum / a.n) * 10) / 10 : null });
-  }
-  return out;
+  return weeklySeries(sessions, f, today).map((p) => ({
+    key: p.key,
+    label: p.label,
+    avg: value === 'focus' ? p.focus : p.avgMinutes,
+  }));
 }
 
 export interface Bucket {
   name: string;
   count: number;
   minutes: number;
+  /** Ø bestätigter Fokus, null = keiner */
+  avgFocus: number | null;
+  /** Anzahl Sitzungen mit bestätigtem Fokus */
+  focusCount: number;
+}
+
+function toBucket(name: string, a: Acc): Bucket {
+  return { name, count: a.count, minutes: a.minutes, avgFocus: avg1(a.focusSum, a.focusN), focusCount: a.focusN };
 }
 
 export function byTimeOfDay(sessions: Session[]): Bucket[] {
-  const out: Bucket[] = TIMES_OF_DAY.map((name) => ({ name, count: 0, minutes: 0 }));
-  const none: Bucket = { name: 'ohne Angabe', count: 0, minutes: 0 };
-  for (const s of sessions) {
-    const b = s.timeOfDay ? out.find((x) => x.name === s.timeOfDay)! : none;
-    b.count += 1;
-    b.minutes += s.durationMinutes;
-  }
-  return none.count ? [...out, none] : out;
+  const acc = new Map<string, Acc>(TIMES_OF_DAY.map((n) => [n, new Acc()]));
+  const none = new Acc();
+  for (const s of sessions) (s.timeOfDay ? acc.get(s.timeOfDay)! : none).add(s);
+  const out = TIMES_OF_DAY.map((n) => toBucket(n, acc.get(n)!));
+  return none.count ? [...out, toBucket('ohne Angabe', none)] : out;
 }
 
 /** Verteilung nach einer Auswahlliste (Haltung, Anker, Ort) in der Reihenfolge der Liste. */
 export function byField(sessions: Session[], field: 'posture' | 'anchor' | 'location', order: string[] = []): Bucket[] {
-  const map = new Map<string, Bucket>();
+  const map = new Map<string, Acc>();
   for (const s of sessions) {
     const name = s[field] || 'ohne Angabe';
-    const b = map.get(name) ?? { name, count: 0, minutes: 0 };
-    b.count += 1;
-    b.minutes += s.durationMinutes;
-    map.set(name, b);
+    const a = map.get(name) ?? new Acc();
+    a.add(s);
+    map.set(name, a);
   }
   const rank = (n: string) => {
     if (n === 'ohne Angabe') return Number.MAX_SAFE_INTEGER;
     const i = order.indexOf(n);
     return i < 0 ? order.length : i;
   };
-  return [...map.values()].sort((a, b) => rank(a.name) - rank(b.name) || b.count - a.count);
+  return [...map.entries()]
+    .map(([name, a]) => toBucket(name, a))
+    .sort((a, b) => rank(a.name) - rank(b.name) || b.count - a.count);
+}
+
+/** Wie oft wurde welcher Fokus-Wert (1–10) vergeben? Nur bestätigte Werte. */
+export function focusDistribution(sessions: Session[]): { value: number; count: number }[] {
+  const out = Array.from({ length: 10 }, (_, i) => ({ value: i + 1, count: 0 }));
+  for (const s of sessions) {
+    if (typeof s.focus === 'number' && s.focus >= 1 && s.focus <= 10) out[s.focus - 1].count += 1;
+  }
+  return out;
 }
 
 /** Heute / diese Woche (Mo–So) für den Startbildschirm. */
