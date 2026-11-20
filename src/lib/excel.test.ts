@@ -7,7 +7,7 @@ import { buildProtocolRows, buildWorkbook, excelFileName, PROTOCOL_COLUMNS } fro
 
 describe('Excel-Export', () => {
   const list = [
-    makeSession({ id: 'b', date: '2026-11-09', startTime: '07:15', durationMinutes: 21, durationSeconds: 1265, anchor: 'Atem', observation: 'Ruhig', posture: 'Fersensitz', location: 'Zu Hause oben', locationOriginal: 'Dachzimmer' }),
+    makeSession({ id: 'b', date: '2026-11-09', startTime: '07:15', durationMinutes: 21, durationSeconds: 1265, anchor: 'Atem', observation: 'Ruhig', posture: 'Fersensitz', location: 'Zu Hause oben', locationOriginal: 'Dachzimmer', focus: 7 }),
     makeSession({ id: 'a', date: '2026-01-31', startTime: undefined, durationMinutes: 5 }),
   ];
 
@@ -18,6 +18,7 @@ describe('Excel-Export', () => {
       'Tageszeit',
       'Dauer (Min.)',
       'Dauer (Sek.)',
+      'Fokus (1–10)',
       'Anker',
       'Anker (ursprünglich)',
       'Beobachtung',
@@ -37,7 +38,8 @@ describe('Excel-Export', () => {
     expect(rows[1].date).toBeInstanceOf(Date);
     expect(rows[1].date.toISOString()).toBe('2026-11-09T00:00:00.000Z');
     expect(rows[1]).toMatchObject({ startTime: '07:15', timeOfDay: 'Morgen', durationMinutes: 21, durationSeconds: 1265, posture: 'Fersensitz', location: 'Zu Hause oben', locationOriginal: 'Dachzimmer', anchorOriginal: '' });
-    expect(rows[0]).toMatchObject({ startTime: '', timeOfDay: '', posture: '' });
+    expect(rows[1].focus).toBe(7);
+    expect(rows[0]).toMatchObject({ startTime: '', timeOfDay: '', posture: '', focus: '' });
   });
 
   it('erzeugt eine Arbeitsmappe mit beiden Blättern, Autofilter und fixierter Kopfzeile', async () => {

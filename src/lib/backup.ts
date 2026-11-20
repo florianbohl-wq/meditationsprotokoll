@@ -2,12 +2,13 @@ import { db } from '../db';
 import { OPTION_KINDS, type Option, type OptionKind, type Session } from '../types';
 import { uuid } from './id';
 import { migrateLegacySession } from './legacy';
+import { withFocusSuggestion } from './focus';
 import { FIELD } from './options';
 
 export interface BackupFile {
   app: 'meditationsprotokoll';
-  /** 1 = alte Version (Haltungen, Hintergrund), 2 = Auswahllisten für Haltung, Anker, Ort */
-  format: 1 | 2;
+  /** 1 = Version 1.0 (Haltungen, Hintergrund), 2 = 1.1 (Auswahllisten), 3 = 1.2 (Fokus) */
+  format: 1 | 2 | 3;
   exportedAt: string;
   sessions: Session[];
   options: Option[];
@@ -18,7 +19,7 @@ export class BackupError extends Error {}
 export async function createBackup(now: Date = new Date()): Promise<BackupFile> {
   const [sessions, options] = await Promise.all([db.sessions.toArray(), db.options.toArray()]);
   options.sort((a, b) => a.kind.localeCompare(b.kind) || a.order - b.order);
-  return { app: 'meditationsprotokoll', format: 2, exportedAt: now.toISOString(), sessions, options };
+  return { app: 'meditationsprotokoll', format: 3, exportedAt: now.toISOString(), sessions, options };
 }
 
 export function backupFileName(now: Date = new Date()): string {
@@ -38,7 +39,7 @@ function validSession(v: unknown): boolean {
     typeof s.durationMinutes === 'number' &&
     typeof s.durationSeconds === 'number' &&
     isStr(s.anchor) &&
-    isStr(s.observation)
+    (s.observation === undefined || isStr(s.observation))
   );
 }
 
@@ -71,9 +72,10 @@ export function parseBackup(text: string): BackupFile {
 
   return {
     app: 'meditationsprotokoll',
-    format: d.format === 2 ? 2 : 1,
+    format: d.format === 3 ? 3 : d.format === 2 ? 2 : 1,
     exportedAt: isStr(d.exportedAt) ? d.exportedAt : '',
-    sessions: (d.sessions as Record<string, unknown>[]).map(migrateLegacySession),
+    // alte Backups: Hintergrund umstellen, Fokus-Vorschlag für Einträge ohne Fokus
+    sessions: (d.sessions as Record<string, unknown>[]).map((x) => withFocusSuggestion(migrateLegacySession(x))),
     options,
   };
 }

@@ -13,6 +13,8 @@ export function migrateLegacySession(raw: Record<string, unknown>): Session {
     const obs = typeof s.observation === 'string' ? s.observation.trimEnd() : '';
     s.observation = obs ? `${obs}\n\nHintergrund: ${bg}` : `Hintergrund: ${bg}`;
   }
+  // Beobachtung ist seit Version 1.2 optional
+  if (typeof s.observation !== 'string') s.observation = '';
   return s as unknown as Session;
 }
 

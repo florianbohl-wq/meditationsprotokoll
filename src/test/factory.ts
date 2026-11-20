@@ -14,6 +14,8 @@ export function makeSession(p: Partial<Session> = {}): Session {
     durationSeconds: p.durationSeconds ?? durationMinutes * 60,
     durationMinutes,
     anchor: p.anchor ?? 'Atem',
+    ...('focus' in p ? { focus: p.focus } : {}),
+    ...('focusSuggestion' in p ? { focusSuggestion: p.focusSuggestion } : {}),
     observation: p.observation ?? 'Ruhig',
     posture: p.posture,
     location: p.location,

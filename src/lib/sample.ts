@@ -3,6 +3,7 @@ import type { Session } from '../types';
 import { uuid } from './id';
 import { addOption } from './options';
 import { addDays, deriveTimeOfDay, todayISO } from './time';
+import { suggestFocus } from './focus';
 
 const OBSERVATIONS = [
   'Anfangs viel Planen, nach etwa zehn Minuten ruhiger. Der Atem wurde feiner.',
@@ -38,8 +39,9 @@ export function generateSampleSessions(n = 30, today: string = todayISO(), seed 
     const date = addDays(today, -Math.floor(r() * 75));
     const startTime = r() < 0.9 ? pick(TIMES) : undefined;
     const durationSeconds = Math.floor((5 + r() * 40) * 60 + r() * 59);
-    // etwa jeder fünfte Eintrag hat noch alte Freitexte
+    // etwa jeder fünfte Eintrag stammt „aus alter Zeit“: Freitexte und unbestätigter Fokus-Vorschlag
     const legacy = r() < 0.2;
+    const observation = r() < 0.85 ? pick(OBSERVATIONS) : '';
     out.push({
       id: uuid(),
       date,
@@ -48,7 +50,8 @@ export function generateSampleSessions(n = 30, today: string = todayISO(), seed 
       durationSeconds,
       durationMinutes: Math.floor(durationSeconds / 60),
       anchor: legacy ? pick(LEGACY_ANCHORS) : pick(DEFAULT_OPTIONS.anchor),
-      observation: pick(OBSERVATIONS),
+      observation,
+      ...(legacy ? { focusSuggestion: suggestFocus(observation) } : { focus: 2 + Math.floor(r() * 8) }),
       posture: r() < 0.9 ? pick(SAMPLE_POSTURES) : undefined,
       location: r() < 0.8 ? (legacy ? pick(LEGACY_LOCATIONS) : pick(DEFAULT_OPTIONS.location)) : undefined,
       createdAt: nowIso,

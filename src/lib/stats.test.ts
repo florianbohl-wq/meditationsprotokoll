@@ -34,6 +34,18 @@ describe('Statistik', () => {
     expect(k.dayRatio).toBeCloseTo(3 / 6);
   });
 
+  it('Ø Fokus nur über bestätigte Werte, Wochenverlauf', () => {
+    const l = [
+      makeSession({ date: '2026-11-09', focus: 6 }),
+      makeSession({ date: '2026-11-08', focus: 3 }),
+      makeSession({ date: '2026-11-08', focusSuggestion: 1 }),
+    ];
+    const k = computeKeyFigures(l, DEFAULT_FILTERS, TODAY);
+    expect(k).toMatchObject({ avgFocus: 4.5, focusCount: 2, count: 3 });
+    expect(weeklyAverage(l, DEFAULT_FILTERS, TODAY, 'focus').map((p) => p.avg)).toEqual([3, 6]);
+    expect(computeKeyFigures([makeSession({ focusSuggestion: 4 })], DEFAULT_FILTERS, TODAY).avgFocus).toBeUndefined();
+  });
+
   it('leere Liste ergibt Nullen', () => {
     const k = computeKeyFigures([], DEFAULT_FILTERS, TODAY);
     expect(k).toMatchObject({ count: 0, totalMinutes: 0, avgMinutes: 0, periodDays: 0, dayRatio: 0 });

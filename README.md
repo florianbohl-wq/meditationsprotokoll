@@ -8,6 +8,16 @@ filtern, Statistiken anzeigen und als Excel exportieren.
 
 Technik: Vite, React, TypeScript, Tailwind CSS, vite-plugin-pwa, Dexie.js, ExcelJS, Recharts.
 
+## Fokus (ab Version 1.2)
+
+Jeder Eintrag hat einen **Fokus von 1 (sehr abgelenkt) bis 10 (sehr fokussiert)** – Pflichtfeld.
+Die Beobachtung ist optional und steht unter „Mehr Details“.
+
+Beim ersten Start nach dem Update auf 1.2 bekommt jeder bisherige Eintrag einen **Vorschlag (1–6)**,
+den die App per Stichwort-Auswertung aus der Beobachtung ableitet (ohne Hinweise: 4; die Zeile
+„Hintergrund: …“ wird ignoriert). Vorschläge werden unter **Einstellungen → Fokus-Vorschläge prüfen**
+bestätigt oder geändert; bis dahin zählen sie nicht in Statistik, Filter und Excel-Export.
+
 ## Auswahllisten (ab Version 1.1)
 
 Haltung, Anker und Ort werden aus festen, erweiterbaren Listen gewählt (Einstellungen → Auswahllisten verwalten).

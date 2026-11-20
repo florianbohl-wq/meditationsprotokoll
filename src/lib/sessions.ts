@@ -2,8 +2,9 @@ import { db } from '../db';
 import type { Session, SessionDraft } from '../types';
 import { uuid } from './id';
 import { deriveTimeOfDay, floorMinutes, todayISO } from './time';
+import { FOCUS_MAX, FOCUS_MIN, isValidFocus } from './focus';
 
-export type DraftErrors = Partial<Record<'date' | 'startTime' | 'durationMinutes' | 'anchor' | 'observation', string>>;
+export type DraftErrors = Partial<Record<'date' | 'startTime' | 'durationMinutes' | 'anchor' | 'focus', string>>;
 
 export function emptyDraft(now: Date = new Date()): SessionDraft {
   return {
@@ -11,6 +12,7 @@ export function emptyDraft(now: Date = new Date()): SessionDraft {
     startTime: '',
     durationMinutes: '',
     anchor: '',
+    focus: '',
     observation: '',
     posture: '',
     location: '',
@@ -25,6 +27,9 @@ export function draftFromSession(s: Session): SessionDraft {
     durationMinutes: String(s.durationMinutes),
     durationSeconds: s.durationSeconds,
     anchor: s.anchor,
+    ...(isValidFocus(s.focus)
+      ? { focus: String(s.focus) }
+      : { focus: s.focusSuggestion ? String(s.focusSuggestion) : '', focusIsSuggestion: !!s.focusSuggestion }),
     observation: s.observation,
     posture: s.posture ?? '',
     location: s.location ?? '',
@@ -40,7 +45,9 @@ export function validateDraft(d: SessionDraft): DraftErrors {
   else if (!/^\d+$/.test(min)) e.durationMinutes = 'Nur ganze Minuten eingeben.';
   else if (Number(min) < 1) e.durationMinutes = 'Die Dauer muss mindestens 1 Minute betragen.';
   if (!d.anchor.trim()) e.anchor = 'Bitte den verwendeten Anker auswählen.';
-  if (!d.observation.trim()) e.observation = 'Bitte mindestens eine Beobachtung notieren.';
+  const f = Number(d.focus);
+  if (!d.focus.trim()) e.focus = 'Bitte den Fokus von 1 bis 10 wählen.';
+  else if (!Number.isInteger(f) || f < FOCUS_MIN || f > FOCUS_MAX) e.focus = 'Der Fokus muss zwischen 1 und 10 liegen.';
   return e;
 }
 
@@ -71,6 +78,8 @@ export function sessionFromDraft(d: SessionDraft, existing?: Session, now: Date 
     timeOfDay: deriveTimeOfDay(startTime),
     ...resolveDuration(d.durationMinutes, d.durationSeconds),
     anchor: d.anchor.trim(),
+    // gespeicherter Fokus gilt als bestätigt; ein evtl. vorhandener Vorschlag entfällt
+    focus: Number(d.focus),
     observation: d.observation.trim(),
     posture: opt(d.posture),
     location: opt(d.location),
@@ -102,4 +111,24 @@ export function sortNewestFirst(list: Session[]): Session[] {
       (b.startTime ?? '').localeCompare(a.startTime ?? '') ||
       b.createdAt.localeCompare(a.createdAt),
   );
+}
+
+/** Fokus-Vorschläge bestätigen bzw. mit geändertem Wert übernehmen (in einer Transaktion). */
+export async function confirmFocus(entries: { id: string; focus: number }[]): Promise<number> {
+  if (entries.some((e) => !isValidFocus(e.focus))) throw new Error('Fokus muss zwischen 1 und 10 liegen.');
+  const now = new Date().toISOString();
+  return db.transaction('rw', db.sessions, async () => {
+    let n = 0;
+    for (const e of entries) {
+      n += await db.sessions
+        .where('id')
+        .equals(e.id)
+        .modify((s: Session) => {
+          s.focus = e.focus;
+          delete s.focusSuggestion;
+          s.updatedAt = now;
+        });
+    }
+    return n;
+  });
 }

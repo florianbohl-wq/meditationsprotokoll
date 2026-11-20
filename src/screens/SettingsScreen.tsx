@@ -11,6 +11,7 @@ import { devToolsEnabled, isAndroid } from '../lib/hooks';
 import { formatTimestampDE } from '../lib/time';
 import { OptionManager } from '../components/OptionManager';
 import { MappingAssistant } from '../components/MappingAssistant';
+import { FocusAssistant } from '../components/FocusAssistant';
 import { Button, Card, Chip, Modal, SectionTitle, useConfirm } from '../components/ui';
 import { useLocalState } from '../lib/hooks';
 
@@ -146,6 +147,7 @@ export function SettingsScreen({ sessions, filtered, filters, options, lastBacku
         </Card>
       </section>
 
+      <FocusAssistant sessions={sessions} toast={toast} />
       <MappingAssistant kind="anchor" sessions={sessions} options={options} toast={toast} />
       <MappingAssistant kind="location" sessions={sessions} options={options} toast={toast} />
 

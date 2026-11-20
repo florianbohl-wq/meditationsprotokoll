@@ -11,6 +11,10 @@ export interface KeyFigures {
   periodDays: number;
   /** 0..1 */
   dayRatio: number;
+  /** Ø Fokus über bestätigte Werte (undefined, wenn keiner bestätigt) */
+  avgFocus?: number;
+  /** Anzahl Einträge mit bestätigtem Fokus */
+  focusCount: number;
   periodFrom?: string;
   periodTo?: string;
 }
@@ -37,6 +41,8 @@ export function computeKeyFigures(sessions: Session[], f: Filters, today: string
   const daysWithSession = new Set(sessions.map((s) => s.date)).size;
   const period = effectivePeriod(sessions, f, today);
   const periodDays = period ? daysBetweenInclusive(period.from, period.to) : 0;
+  const focused = sessions.filter((s) => typeof s.focus === 'number');
+  const focusSum = focused.reduce((a, s) => a + (s.focus ?? 0), 0);
   return {
     count,
     totalMinutes,
@@ -45,6 +51,8 @@ export function computeKeyFigures(sessions: Session[], f: Filters, today: string
     daysWithSession,
     periodDays,
     dayRatio: periodDays ? Math.min(1, daysWithSession / periodDays) : 0,
+    avgFocus: focused.length ? Math.round((focusSum / focused.length) * 10) / 10 : undefined,
+    focusCount: focused.length,
     periodFrom: period?.from,
     periodTo: period?.to,
   };
@@ -96,15 +104,25 @@ export interface AvgPoint {
   avg: number | null;
 }
 
-/** Ø Dauer pro Woche (Wochen ohne Sitzung = null, damit die Linie Lücken überbrückt). */
-export function weeklyAverage(sessions: Session[], f: Filters, today: string = todayISO()): AvgPoint[] {
+/**
+ * Wochendurchschnitt (Wochen ohne Wert = null, damit die Linie Lücken überbrückt).
+ * value: 'duration' = Ø Dauer, 'focus' = Ø bestätigter Fokus.
+ */
+export function weeklyAverage(
+  sessions: Session[],
+  f: Filters,
+  today: string = todayISO(),
+  value: 'duration' | 'focus' = 'duration',
+): AvgPoint[] {
   const period = effectivePeriod(sessions, f, today);
   if (!period) return [];
   const acc = new Map<string, { sum: number; n: number }>();
   for (const s of sessions) {
+    const v = value === 'focus' ? s.focus : s.durationMinutes;
+    if (typeof v !== 'number') continue;
     const w = startOfWeek(s.date);
     const a = acc.get(w) ?? { sum: 0, n: 0 };
-    a.sum += s.durationMinutes;
+    a.sum += v;
     a.n += 1;
     acc.set(w, a);
   }

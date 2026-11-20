@@ -2,6 +2,7 @@ import Dexie, { type EntityTable, type Transaction } from 'dexie';
 import type { MetaEntry, Option, OptionKind, Session } from './types';
 import { uuid } from './lib/id';
 import { matchOptionName, migrateLegacySession } from './lib/legacy';
+import { withFocusSuggestion } from './lib/focus';
 
 export const DEFAULT_OPTIONS: Record<OptionKind, string[]> = {
   posture: ['Schneidersitz', 'Fersensitz', 'Liegen'],
@@ -54,6 +55,20 @@ export async function upgradeV1toV2(tx: Transaction): Promise<void> {
     });
 }
 
+/**
+ * Umstellung Version 2 → 3: Fokus-Feld.
+ * Alle bisherigen Einträge bekommen einen Fokus-Vorschlag (1–6) aus der Beobachtung,
+ * der im Fokus-Assistenten bestätigt oder geändert wird.
+ */
+export async function upgradeV2toV3(tx: Transaction): Promise<void> {
+  await tx
+    .table('sessions')
+    .toCollection()
+    .modify((s: Session, ref: { value: unknown }) => {
+      ref.value = withFocusSuggestion(s);
+    });
+}
+
 export class ProtocolDB extends Dexie {
   sessions!: EntityTable<Session, 'id'>;
   options!: EntityTable<Option, 'id'>;
@@ -70,6 +85,7 @@ export class ProtocolDB extends Dexie {
         meta: 'key',
       })
       .upgrade(upgradeV1toV2);
+    this.version(3).stores({}).upgrade(upgradeV2toV3);
     this.on('populate', (tx) => {
       tx.table('options').bulkAdd(defaultOptions());
     });

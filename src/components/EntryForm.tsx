@@ -4,6 +4,7 @@ import { validateDraft, type DraftErrors } from '../lib/sessions';
 import { floorMinutes, formatClock } from '../lib/time';
 import { useLocalState } from '../lib/hooks';
 import { ChipSelect } from './ChipSelect';
+import { FocusPicker } from './FocusPicker';
 import { Button, Field, inputClass, Modal, useConfirm } from './ui';
 
 interface Props {
@@ -21,7 +22,7 @@ export function EntryForm({ initial, options, onSave, onCancel }: Props) {
   const [errors, setErrors] = useState<DraftErrors>({});
   const [saving, setSaving] = useState(false);
   const [detailsPref, setDetailsPref] = useLocalState('formDetailsOpen', false);
-  const hasOptional = !!(initial.posture || initial.location);
+  const hasOptional = !!(initial.posture || initial.location || initial.observation.trim());
   const [showDetails, setShowDetails] = useState(detailsPref || hasOptional);
   const [confirmEl, confirm] = useConfirm();
   const formRef = useRef<HTMLFormElement>(null);
@@ -37,7 +38,7 @@ export function EntryForm({ initial, options, onSave, onCancel }: Props) {
     e?.preventDefault();
     const errs = validateDraft(d);
     setErrors(errs);
-    const first = (['date', 'startTime', 'durationMinutes', 'anchor', 'observation'] as const).find((k) => errs[k]);
+    const first = (['date', 'startTime', 'durationMinutes', 'anchor', 'focus'] as const).find((k) => errs[k]);
     if (first) {
       document.getElementById(first === 'anchor' ? 'f-anchor-chips' : `f-${first}`)?.focus();
       return;
@@ -158,14 +159,20 @@ export function EntryForm({ initial, options, onSave, onCancel }: Props) {
           <ChipSelect kind="anchor" idPrefix="f-anchor" options={options} value={d.anchor} onChange={(v) => set('anchor', v)} />
         </Field>
 
-        <Field label="Beobachtung" htmlFor="f-observation" required error={errors.observation} hint={OBSERVATION_HINT}>
-          <textarea
-            id="f-observation"
-            rows={6}
-            className={inputClass(errors.observation) + ' resize-y leading-relaxed'}
-            value={d.observation}
-            onChange={(e) => set('observation', e.target.value)}
-            onKeyDown={onTextareaKey}
+        <Field
+          label="Fokus"
+          required
+          error={errors.focus}
+          hint={d.focusIsSuggestion ? 'Automatischer Vorschlag aus deiner Beobachtung – bitte prüfen. Beim Speichern gilt er als bestätigt.' : undefined}
+        >
+          <FocusPicker
+            id="f-focus"
+            value={d.focus}
+            suggestion={d.focusIsSuggestion}
+            onChange={(v) => {
+              setD((x) => ({ ...x, focus: v, focusIsSuggestion: false }));
+              if (errors.focus) setErrors((e) => ({ ...e, focus: undefined }));
+            }}
           />
         </Field>
 
@@ -189,6 +196,16 @@ export function EntryForm({ initial, options, onSave, onCancel }: Props) {
               </Field>
               <Field label="Ort">
                 <ChipSelect kind="location" idPrefix="f-location" options={options} value={d.location} onChange={(v) => set('location', v)} />
+              </Field>
+              <Field label="Beobachtung" htmlFor="f-observation" hint={OBSERVATION_HINT}>
+                <textarea
+                  id="f-observation"
+                  rows={5}
+                  className={inputClass() + ' resize-y leading-relaxed'}
+                  value={d.observation}
+                  onChange={(e) => set('observation', e.target.value)}
+                  onKeyDown={onTextareaKey}
+                />
               </Field>
             </div>
           )}

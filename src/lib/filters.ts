@@ -13,6 +13,8 @@ export interface Filters {
   timeOfDay: string;
   minDuration: string;
   maxDuration: string;
+  minFocus: string;
+  maxFocus: string;
   text: string;
 }
 
@@ -26,6 +28,8 @@ export const DEFAULT_FILTERS: Filters = {
   timeOfDay: '',
   minDuration: '',
   maxDuration: '',
+  minFocus: '',
+  maxFocus: '',
   text: '',
 };
 
@@ -78,6 +82,15 @@ export function matchesFilters(s: Session, f: Filters, today: string = todayISO(
   const max = num(f.maxDuration);
   if (min !== undefined && s.durationMinutes < min) return false;
   if (max !== undefined && s.durationMinutes > max) return false;
+
+  // Fokus-Filter berücksichtigt nur bestätigte Werte
+  const fMin = num(f.minFocus);
+  const fMax = num(f.maxFocus);
+  if (fMin !== undefined || fMax !== undefined) {
+    if (typeof s.focus !== 'number') return false;
+    if (fMin !== undefined && s.focus < fMin) return false;
+    if (fMax !== undefined && s.focus > fMax) return false;
+  }
 
   const q = f.text.trim().toLocaleLowerCase('de');
   if (q) {
@@ -134,6 +147,12 @@ export function activeFilterChips(f: Filters): FilterChip[] {
     const b = f.maxDuration.trim();
     const label = a && b ? `${a}–${b} Min.` : a ? `ab ${a} Min.` : `bis ${b} Min.`;
     chips.push({ key: 'duration', label: `Dauer ${label}`, clear: (x) => ({ ...x, minDuration: '', maxDuration: '' }) });
+  }
+  if (f.minFocus.trim() || f.maxFocus.trim()) {
+    const a = f.minFocus.trim();
+    const b = f.maxFocus.trim();
+    const label = a && b ? `${a}–${b}` : a ? `ab ${a}` : `bis ${b}`;
+    chips.push({ key: 'focus', label: `Fokus ${label}`, clear: (x) => ({ ...x, minFocus: '', maxFocus: '' }) });
   }
   if (f.text.trim()) {
     chips.push({ key: 'text', label: `„${f.text.trim()}“`, clear: (x) => ({ ...x, text: '' }) });

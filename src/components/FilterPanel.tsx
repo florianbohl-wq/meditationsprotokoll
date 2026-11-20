@@ -165,6 +165,34 @@ function FilterPanel({ filters: f, setFilters, options, sessions }: Omit<Props, 
             />
           </div>
         </Field>
+
+        <Field label="Fokus (1–10)" hint="Nur bestätigte Werte">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={10}
+              aria-label="Fokus von"
+              placeholder="von"
+              className={inputClass()}
+              value={f.minFocus}
+              onChange={(e) => set({ minFocus: e.target.value })}
+            />
+            <span className="text-stone-400">–</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={10}
+              aria-label="Fokus bis"
+              placeholder="bis"
+              className={inputClass()}
+              value={f.maxFocus}
+              onChange={(e) => set({ maxFocus: e.target.value })}
+            />
+          </div>
+        </Field>
       </div>
     </div>
   );

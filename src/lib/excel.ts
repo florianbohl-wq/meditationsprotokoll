@@ -15,6 +15,7 @@ export interface ExcelRow {
   timeOfDay: string;
   durationMinutes: number;
   durationSeconds: number;
+  focus: number | string;
   anchor: string;
   anchorOriginal: string;
   observation: string;
@@ -32,6 +33,7 @@ export const PROTOCOL_COLUMNS: ExcelColumn[] = [
   { header: 'Tageszeit', key: 'timeOfDay', width: 12 },
   { header: 'Dauer (Min.)', key: 'durationMinutes', width: 12 },
   { header: 'Dauer (Sek.)', key: 'durationSeconds', width: 12 },
+  { header: 'Fokus (1–10)', key: 'focus', width: 12 },
   { header: 'Anker', key: 'anchor', width: 18 },
   { header: 'Anker (ursprünglich)', key: 'anchorOriginal', width: 26 },
   { header: 'Beobachtung', key: 'observation', width: 60 },
@@ -62,6 +64,8 @@ export function toExcelRow(s: Session): ExcelRow {
     timeOfDay: s.timeOfDay ?? '',
     durationMinutes: s.durationMinutes,
     durationSeconds: s.durationSeconds,
+    // nur bestätigte Werte; unbestätigte Vorschläge bleiben leer
+    focus: typeof s.focus === 'number' ? s.focus : '',
     anchor: s.anchor,
     anchorOriginal: s.anchorOriginal ?? '',
     observation: s.observation,
@@ -89,6 +93,8 @@ export function statisticRows(k: KeyFigures, scopeLabel: string): [string, strin
     ['Gesamtminuten', k.totalMinutes],
     ['Ø Dauer (Min.)', k.avgMinutes],
     ['Längste Sitzung (Min.)', k.longestMinutes],
+    ['Ø Fokus (1–10)', k.avgFocus ?? '–'],
+    ['Einträge mit Fokus', k.focusCount],
     ['Tage mit Sitzung', k.daysWithSession],
     ['Tage im Zeitraum', k.periodDays],
     ['Anteil Tage mit Sitzung', k.dayRatio],

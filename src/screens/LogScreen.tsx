@@ -96,7 +96,17 @@ export function LogScreen(p: Props) {
                       {s.posture && <span className="text-stone-400 dark:text-stone-500"> · {s.posture}</span>}
                       {s.location && <span className="text-stone-400 dark:text-stone-500"> · {s.location}</span>}
                     </p>
-                    <p className="mt-2 line-clamp-2 text-sm text-stone-500 dark:text-stone-400">{s.observation}</p>
+                    <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
+                      Fokus{' '}
+                      {typeof s.focus === 'number' ? (
+                        <strong>{s.focus}</strong>
+                      ) : (
+                        <span className="text-amber-700 dark:text-amber-400">{s.focusSuggestion ?? '–'}? (Vorschlag)</span>
+                      )}
+                    </p>
+                    {s.observation.trim() && (
+                      <p className="mt-2 line-clamp-2 text-sm text-stone-500 dark:text-stone-400">{s.observation}</p>
+                    )}
                   </button>
                 </li>
               ))}
@@ -106,7 +116,7 @@ export function LogScreen(p: Props) {
               <table className="w-full min-w-[50rem] text-left text-sm">
                 <thead className="border-b border-stone-200 text-stone-500 dark:border-stone-800 dark:text-stone-400">
                   <tr>
-                    {['Datum', 'Zeit', 'Tageszeit', 'Dauer', 'Anker', 'Beobachtung', 'Haltung', 'Ort'].map((h) => (
+                    {['Datum', 'Zeit', 'Tageszeit', 'Dauer', 'Fokus', 'Anker', 'Haltung', 'Ort', 'Beobachtung'].map((h) => (
                       <th key={h} className="px-3 py-3 font-medium whitespace-nowrap">
                         {h}
                       </th>
@@ -131,12 +141,21 @@ export function LogScreen(p: Props) {
                       <td className="px-3 py-2.5 tabular">{s.startTime ?? ''}</td>
                       <td className="px-3 py-2.5">{s.timeOfDay ?? ''}</td>
                       <td className="px-3 py-2.5 text-right whitespace-nowrap tabular">{s.durationMinutes} Min.</td>
+                      <td className="px-3 py-2.5 text-center tabular">
+                        {typeof s.focus === 'number' ? (
+                          s.focus
+                        ) : (
+                          <span className="text-amber-700 dark:text-amber-400" title="Vorschlag, noch nicht bestätigt">
+                            {s.focusSuggestion ?? '–'}?
+                          </span>
+                        )}
+                      </td>
                       <td className="max-w-48 px-3 py-2.5">{s.anchor}</td>
+                      <td className="px-3 py-2.5">{s.posture ?? ''}</td>
+                      <td className="px-3 py-2.5">{s.location ?? ''}</td>
                       <td className="max-w-80 px-3 py-2.5">
                         <span className="line-clamp-2">{s.observation}</span>
                       </td>
-                      <td className="px-3 py-2.5">{s.posture ?? ''}</td>
-                      <td className="px-3 py-2.5">{s.location ?? ''}</td>
                     </tr>
                   ))}
                 </tbody>

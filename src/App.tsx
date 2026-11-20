@@ -33,6 +33,7 @@ function draftFromTimer(t: TimerState): SessionDraft {
     durationMinutes: String(floorMinutes(seconds)),
     durationSeconds: seconds,
     anchor: '',
+    focus: '',
     observation: '',
     posture: '',
     location: '',

@@ -72,20 +72,22 @@ describe('Tageszeit-Ableitung', () => {
       startTime: '19:45',
       durationMinutes: '20',
       anchor: 'Atem',
+      focus: '6',
       observation: 'x',
     });
+    expect(s.focus).toBe(6);
     expect(s.timeOfDay).toBe('Abend');
     expect(s.date).toBe('2026-11-09');
   });
 });
 
 describe('Validierung', () => {
-  it('meldet alle vier Pflichtfelder', () => {
+  it('meldet alle vier Pflichtfelder (Datum, Dauer, Anker, Fokus)', () => {
     const e = validateDraft({ ...emptyDraft(), date: '' });
-    expect(Object.keys(e).sort()).toEqual(['anchor', 'date', 'durationMinutes', 'observation']);
+    expect(Object.keys(e).sort()).toEqual(['anchor', 'date', 'durationMinutes', 'focus']);
   });
   it('lehnt 0 Minuten und Kommazahlen ab', () => {
-    const base = { ...emptyDraft(), anchor: 'a', observation: 'b' };
+    const base = { ...emptyDraft(), anchor: 'a', focus: '5' };
     expect(validateDraft({ ...base, durationMinutes: '0' }).durationMinutes).toBeTruthy();
     expect(validateDraft({ ...base, durationMinutes: '2.5' }).durationMinutes).toBeTruthy();
     expect(validateDraft({ ...base, durationMinutes: '15' })).toEqual({});

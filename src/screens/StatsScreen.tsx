@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Option, OptionKind, Session } from '../types';
 import type { Filters } from '../lib/filters';
-import { byField, byTimeOfDay, computeKeyFigures, minutesSeries, weeklyAverage } from '../lib/stats';
+import { byField, byTimeOfDay, computeKeyFigures, minutesSeries, weeklyAverage, type AvgPoint } from '../lib/stats';
 import { formatDateDE, formatMinutes } from '../lib/time';
 import { FilterBar } from '../components/FilterPanel';
 import { Card, EmptyState } from '../components/ui';
@@ -33,6 +33,7 @@ export function StatsScreen(p: Props) {
   const k = useMemo(() => computeKeyFigures(p.filtered, p.filters), [p.filtered, p.filters]);
   const series = useMemo(() => minutesSeries(p.filtered, p.filters), [p.filtered, p.filters]);
   const avg = useMemo(() => weeklyAverage(p.filtered, p.filters), [p.filtered, p.filters]);
+  const avgFocus = useMemo(() => weeklyAverage(p.filtered, p.filters, undefined, 'focus'), [p.filtered, p.filters]);
   const tod = useMemo(() => byTimeOfDay(p.filtered), [p.filtered]);
   const order = (kind: OptionKind) =>
     p.options.filter((o) => o.kind === kind).sort((a, b) => a.order - b.order).map((o) => o.name);
@@ -65,6 +66,11 @@ export function StatsScreen(p: Props) {
             <Kpi label="Sitzungen" value={String(k.count)} />
             <Kpi label="Gesamt" value={formatMinutes(k.totalMinutes)} />
             <Kpi label="Ø Dauer" value={`${k.avgMinutes.toLocaleString('de-DE')} Min.`} />
+            <Kpi
+              label="Ø Fokus"
+              value={k.avgFocus !== undefined ? `${k.avgFocus.toLocaleString('de-DE')} / 10` : '–'}
+              sub={k.focusCount < k.count ? `${k.focusCount} von ${k.count} bestätigt` : undefined}
+            />
             <Kpi label="Längste Sitzung" value={`${k.longestMinutes} Min.`} />
             <Kpi label="Tage mit Sitzung" value={String(k.daysWithSession)} />
             <Kpi label="Anteil Tage" value={`${Math.round(k.dayRatio * 100)} %`} sub={`${k.daysWithSession} von ${k.periodDays}`} />
@@ -88,28 +94,15 @@ export function StatsScreen(p: Props) {
                 </ChartCard>
 
                 <ChartCard title="Ø Dauer pro Woche">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={avg} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
-                      <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
-                      <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} />
-                      <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} width={44} />
-                      <Tooltip
-                        {...tooltipStyle}
-                        cursor={{ stroke: 'var(--chart-grid)', strokeWidth: 1 }}
-                        labelFormatter={(l) => `Woche ab ${l}`}
-                        formatter={(v: number) => [`${v.toLocaleString('de-DE')} Min.`, 'Ø Dauer']}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="avg"
-                        stroke="var(--chart-line)"
-                        strokeWidth={2}
-                        connectNulls
-                        dot={{ r: 4, fill: 'var(--chart-line)', strokeWidth: 0 }}
-                        activeDot={{ r: 6, strokeWidth: 2, stroke: 'var(--chart-tooltip-bg)' }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <AvgLineChart data={avg} unit="Min." label="Ø Dauer" />
+                </ChartCard>
+
+                <ChartCard title="Ø Fokus pro Woche">
+                  {k.focusCount === 0 ? (
+                    <p className="py-16 text-center text-sm text-stone-500 dark:text-stone-400">Noch keine bestätigten Fokus-Werte</p>
+                  ) : (
+                    <AvgLineChart data={avgFocus} unit="" label="Ø Fokus" domain={[1, 10]} />
+                  )}
                 </ChartCard>
 
                 <ChartCard title="Nach Tageszeit (Sitzungen)">
@@ -133,6 +126,33 @@ export function StatsScreen(p: Props) {
         </>
       )}
     </div>
+  );
+}
+
+function AvgLineChart({ data, unit, label, domain }: { data: AvgPoint[]; unit: string; label: string; domain?: [number, number] }) {
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <LineChart data={data} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+        <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} />
+        <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} width={44} domain={domain ?? [0, 'auto']} />
+        <Tooltip
+          {...tooltipStyle}
+          cursor={{ stroke: 'var(--chart-grid)', strokeWidth: 1 }}
+          labelFormatter={(l) => `Woche ab ${l}`}
+          formatter={(v: number) => [`${v.toLocaleString('de-DE')}${unit ? ` ${unit}` : ''}`, label]}
+        />
+        <Line
+          type="monotone"
+          dataKey="avg"
+          stroke="var(--chart-line)"
+          strokeWidth={2}
+          connectNulls
+          dot={{ r: 4, fill: 'var(--chart-line)', strokeWidth: 0 }}
+          activeDot={{ r: 6, strokeWidth: 2, stroke: 'var(--chart-tooltip-bg)' }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
 

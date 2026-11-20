@@ -24,6 +24,11 @@ export interface Session {
   durationMinutes: number;
   /** Name einer Anker-Option (bei alten Einträgen evtl. noch freier Text) */
   anchor: string;
+  /** Fokus 1 (sehr abgelenkt) … 10 (sehr fokussiert); fehlt bei alten Einträgen bis zur Bestätigung */
+  focus?: number;
+  /** automatisch erzeugter Vorschlag für alte Einträge, bis der Nutzer ihn bestätigt */
+  focusSuggestion?: number;
+  /** Beobachtung, optional (leerer Text = keine) */
   observation: string;
   posture?: string;
   /** Name einer Ort-Option (bei alten Einträgen evtl. noch freier Text) */
@@ -69,6 +74,10 @@ export interface SessionDraft {
   durationMinutes: string;
   durationSeconds?: number;
   anchor: string;
+  /** '' oder '1' … '10' */
+  focus: string;
+  /** Vorschlag wird angezeigt, bis der Wert gespeichert wird */
+  focusIsSuggestion?: boolean;
   observation: string;
   posture: string;
   location: string;
